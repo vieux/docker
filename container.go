@@ -60,6 +60,7 @@ type Config struct {
 	OpenStdin    bool // Open stdin
 	StdinOnce    bool // If true, close stdin after the 1 attached client disconnects.
 	Env          []string
+	Volumes      []string
 	Cmd          []string
 	Image        string // Name of the image as it was passed by the operator (eg. could be symbolic)
 }
@@ -84,6 +85,9 @@ func ParseRun(args []string, stdout io.Writer) (*Config, error) {
 
 	var flEnv ListOpts
 	cmd.Var(&flEnv, "e", "Set environment variables")
+
+	var flVolumes ListOpts
+	cmd.Var(&flVolumes, "v", "Mount volumes")
 
 	if err := cmd.Parse(args); err != nil {
 		return nil, err
@@ -121,6 +125,7 @@ func ParseRun(args []string, stdout io.Writer) (*Config, error) {
 		AttachStdout: flAttach.Get("stdout"),
 		AttachStderr: flAttach.Get("stderr"),
 		Env:          flEnv,
+		Volumes:      flVolumes,
 		Cmd:          runCmd,
 		Image:        image,
 	}
@@ -364,6 +369,15 @@ func (container *Container) Attach(stdin io.ReadCloser, stdinCloser io.Closer, s
 	})
 }
 
+func (container *Container) createVolumesDirs() error {
+	for _, dir := range container.Config.Volumes {
+		if err := os.MkdirAll(path.Join(container.RootfsPath(), dir), 0755); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (container *Container) Start() error {
 	if container.State.Running {
 		return fmt.Errorf("The container %s is already running.", container.Id)
@@ -372,6 +386,9 @@ func (container *Container) Start() error {
 		return err
 	}
 	if err := container.allocateNetwork(); err != nil {
+		return err
+	}
+	if err := container.createVolumesDirs(); err != nil {
 		return err
 	}
 	if err := container.generateLXCConfig(); err != nil {
