@@ -62,6 +62,7 @@ type Config struct {
 	Env          []string
 	Cmd          []string
 	Image        string // Name of the image as it was passed by the operator (eg. could be symbolic)
+	Volumes      map[string]struct{}
 }
 
 func ParseRun(args []string, stdout io.Writer) (*Config, error) {
@@ -84,6 +85,9 @@ func ParseRun(args []string, stdout io.Writer) (*Config, error) {
 
 	var flEnv ListOpts
 	cmd.Var(&flEnv, "e", "Set environment variables")
+
+	flVolumes := NewPathOpts()
+	cmd.Var(flVolumes, "v", "Attach a data volume")
 
 	if err := cmd.Parse(args); err != nil {
 		return nil, err
@@ -123,6 +127,7 @@ func ParseRun(args []string, stdout io.Writer) (*Config, error) {
 		Env:          flEnv,
 		Cmd:          runCmd,
 		Image:        image,
+		Volumes:      flVolumes,
 	}
 	// When allocating stdin in attached mode, close stdin at client disconnect
 	if config.OpenStdin && config.AttachStdin {
