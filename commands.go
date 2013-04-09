@@ -160,7 +160,8 @@ func (srv *Server) CmdLogin(stdin io.ReadCloser, stdout rcli.DockerConn, args ..
 }
 
 // 'docker wait': block until a container stops
-func (srv *Server) CmdWait(stdin io.ReadCloser, stdout io.Writer, args ...string) error {
+func (srv *Server) CmdWait(stdin io.ReadCloser, stdout rcli.DockerConn, args ...string) error {
+	stdout.Flush()
 	cmd := rcli.Subcmd(stdout, "wait", "[OPTIONS] NAME", "Block until a container stops, then print its exit code.")
 	if err := cmd.Parse(args); err != nil {
 		return nil
@@ -282,7 +283,8 @@ func (srv *Server) CmdStart(stdin io.ReadCloser, stdout io.Writer, args ...strin
 	return nil
 }
 
-func (srv *Server) CmdInspect(stdin io.ReadCloser, stdout io.Writer, args ...string) error {
+func (srv *Server) CmdInspect(stdin io.ReadCloser, stdout rcli.DockerConn, args ...string) error {
+	stdout.Flush()
 	cmd := rcli.Subcmd(stdout, "inspect", "[OPTIONS] CONTAINER", "Return low-level information on a container")
 	if err := cmd.Parse(args); err != nil {
 		return nil
@@ -688,7 +690,8 @@ func (srv *Server) CmdPs(stdin io.ReadCloser, stdout io.Writer, args ...string) 
 	return nil
 }
 
-func (srv *Server) CmdCommit(stdin io.ReadCloser, stdout io.Writer, args ...string) error {
+func (srv *Server) CmdCommit(stdin io.ReadCloser, stdout rcli.DockerConn, args ...string) error {
+	stdout.Flush()
 	cmd := rcli.Subcmd(stdout,
 		"commit", "[OPTIONS] CONTAINER [REPOSITORY [TAG]]",
 		"Create a new image from a container's changes")
