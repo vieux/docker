@@ -62,7 +62,7 @@ type Config struct {
 	Env          []string
 	Cmd          []string
 	Image        string // Name of the image as it was passed by the operator (eg. could be symbolic)
-	Volumes      map[string]struct{}
+	Volumes      map[string]string
 }
 
 func ParseRun(args []string, stdout io.Writer) (*Config, error) {
@@ -436,6 +436,7 @@ func (container *Container) Start() error {
 	// FIXME: save state on disk *first*, then converge
 	// this way disk state is used as a journal, eg. we can restore after crash etc.
 	container.State.setRunning(container.cmd.Process.Pid)
+
 	container.ToDisk()
 	go container.monitor()
 	return nil
