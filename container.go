@@ -379,9 +379,27 @@ func (container *Container) Start() error {
 	if err := container.allocateNetwork(); err != nil {
 		return err
 	}
+
+	// Create the requested volumes volumes
+	for volPath := range container.Config.Volumes {
+		if c, err := container.runtime.volumes.Create(nil, container, ""); err != nil {
+			return err
+		} else {
+			if err := os.MkdirAll(path.Join(container.RootfsPath(), volPath), 0755); err != nil {
+				return nil
+			}
+			root, err := c.root()
+			if err != nil {
+				return err
+			}
+			container.Config.Volumes[volPath] = root
+		}
+	}
+
 	if err := container.generateLXCConfig(); err != nil {
 		return err
 	}
+
 	params := []string{
 		"-n", container.Id,
 		"-f", container.lxcConfigPath(),
