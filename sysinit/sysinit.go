@@ -9,8 +9,10 @@ import (
 	_ "github.com/dotcloud/docker/execdriver/lxc"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"strings"
+	"syscall"
 )
 
 // Clear environment pollution introduced by lxc-start
@@ -66,6 +68,23 @@ func SysInit() {
 		log.Fatalf("Unable to unmarshal environment variables: %v", err)
 	}
 
+	// Get introspection FD
+	conn, err := net.Dial("unix", "/.dockersock")
+	if err == nil {
+		if uc, ok := conn.(*net.UnixConn); ok {
+			env = append(env, fmt.Sprintf("DOCKER_SOCKET=%s", "/.dockersock"))
+			file, err := uc.File()
+			if err != nil {
+				log.Fatalf("Unable to get introspection fd: %v", err)
+			}
+			if _, _, err := syscall.Syscall(syscall.SYS_FCNTL, file.Fd(), syscall.F_SETFD, 0); err != 0 {
+				log.Fatalf("Unable to get introspection fd: %v", err)
+			}
+			env = append(env, fmt.Sprintf("DOCKER_FD=%d", file.Fd()))
+		} else {
+			log.Fatalf("Unable to get introspection fd: invalid socket")
+		}
+	}
 	// Propagate the plugin-specific container env variable
 	env = append(env, "container="+os.Getenv("container"))
 

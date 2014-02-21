@@ -1151,7 +1151,7 @@ func ServeFd(addr string, handle http.Handler) error {
 
 // ListenAndServe sets up the required http.Server and gets it listening for
 // each addr passed in and does protocol specific checking.
-func ListenAndServe(proto, addr string, eng *engine.Engine, logging, enableCors bool, dockerVersion string) error {
+func ListenAndServe(proto, addr string, eng *engine.Engine, logging, enableCors, admin bool, dockerVersion string) error {
 	r, err := createRouter(eng, logging, enableCors, dockerVersion)
 	if err != nil {
 		return err
@@ -1179,23 +1179,29 @@ func ListenAndServe(proto, addr string, eng *engine.Engine, logging, enableCors 
 			log.Println("/!\\ DON'T BIND ON ANOTHER IP ADDRESS THAN 127.0.0.1 IF YOU DON'T KNOW WHAT YOU'RE DOING /!\\")
 		}
 	case "unix":
-		if err := os.Chmod(addr, 0660); err != nil {
-			return err
-		}
+		if admin {
+			if err := os.Chmod(addr, 0600); err != nil {
+				return err
+			}
+		} else {
+			if err := os.Chmod(addr, 0660); err != nil {
+				return err
+			}
 
-		groups, err := ioutil.ReadFile("/etc/group")
-		if err != nil {
-			return err
-		}
-		re := regexp.MustCompile("(^|\n)docker:.*?:([0-9]+)")
-		if gidMatch := re.FindStringSubmatch(string(groups)); gidMatch != nil {
-			gid, err := strconv.Atoi(gidMatch[2])
+			groups, err := ioutil.ReadFile("/etc/group")
 			if err != nil {
 				return err
 			}
-			utils.Debugf("docker group found. gid: %d", gid)
-			if err := os.Chown(addr, 0, gid); err != nil {
-				return err
+			re := regexp.MustCompile("(^|\n)docker:.*?:([0-9]+)")
+			if gidMatch := re.FindStringSubmatch(string(groups)); gidMatch != nil {
+				gid, err := strconv.Atoi(gidMatch[2])
+				if err != nil {
+					return err
+				}
+				utils.Debugf("docker group found. gid: %d", gid)
+				if err := os.Chown(addr, 0, gid); err != nil {
+					return err
+				}
 			}
 		}
 	default:
@@ -1211,7 +1217,7 @@ func ListenAndServe(proto, addr string, eng *engine.Engine, logging, enableCors 
 func ServeApi(job *engine.Job) engine.Status {
 	var (
 		protoAddrs = job.Args
-		chErrors   = make(chan error, len(protoAddrs))
+		chErrors   = make(chan error, len(protoAddrs)+1)
 	)
 	activationLock = make(chan struct{})
 
@@ -1223,11 +1229,11 @@ func ServeApi(job *engine.Job) engine.Status {
 		protoAddrParts := strings.SplitN(protoAddr, "://", 2)
 		go func() {
 			log.Printf("Listening for HTTP on %s (%s)\n", protoAddrParts[0], protoAddrParts[1])
-			chErrors <- ListenAndServe(protoAddrParts[0], protoAddrParts[1], job.Eng, job.GetenvBool("Logging"), job.GetenvBool("EnableCors"), job.Getenv("Version"))
+			chErrors <- ListenAndServe(protoAddrParts[0], protoAddrParts[1], job.Eng, job.GetenvBool("Logging"), job.GetenvBool("EnableCors"), false, job.Getenv("Version"))
 		}()
 	}
-
-	for i := 0; i < len(protoAddrs); i += 1 {
+	chErrors <- ListenAndServe("unix", "/var/run/docker.admin", job.Eng, false, false, true, job.Getenv("Version"))
+	for i := 0; i < len(protoAddrs)+1; i += 1 {
 		err := <-chErrors
 		if err != nil {
 			return job.Error(err)
