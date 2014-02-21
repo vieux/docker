@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dotcloud/docker/api"
 	"github.com/dotcloud/docker/archive"
+	"github.com/dotcloud/docker/dockerversion"
 	"github.com/dotcloud/docker/engine"
 	"github.com/dotcloud/docker/execdriver"
 	"github.com/dotcloud/docker/graphdriver"
@@ -15,6 +17,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"path"
 	"strings"
@@ -358,6 +361,7 @@ func populateCommand(c *Container) {
 	var (
 		en           *execdriver.Network
 		driverConfig []string
+		err          error
 	)
 
 	if !c.Config.NetworkDisabled {
@@ -396,6 +400,43 @@ func populateCommand(c *Container) {
 		Resources:  resources,
 	}
 	c.command.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+
+	//if c.command.Privileged {
+	if c.command.FdPair, err = syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0); err == nil {
+		syscall.CloseOnExec(c.command.FdPair[0])
+		//		if false {
+		go func() {
+			if router, err := api.CreateRouter(c.runtime.eng, false, false, dockerversion.VERSION); err == nil {
+				/*if sa, err := syscall.Getsockname(c.command.FdPair[0]); err == nil {
+					if s, ok := sa.(*syscall.SockaddrUnix); ok {
+						if l, err := net.ListenUnix("unix", &net.UnixAddr{Name: s.Name, Net: "unix"}); err == nil {
+							fmt.Println("start net.UnixAddr")
+							if err := api.Serve("http", router, l);err != nil {
+								fmt.Println(err.Error())
+							}
+							fmt.Println("stop net.UnixAddr")
+						}
+					}
+				}*/
+				if l, err := net.FileListener(os.NewFile(uintptr(c.command.FdPair[0]), "lol")); err == nil {
+					fmt.Println("start net.FileListener")
+					if err := api.Serve("http", router, l); err != nil {
+						fmt.Println(err.Error())
+					}
+					fmt.Println("stop net.FileListener")
+				}
+			} else {
+				utils.Errorf("router: %s\n", err)
+			}
+		}()
+		//	}
+		//		go func() {
+		//			for {
+		//				io.Copy(os.Stdout, os.NewFile(uintptr(c.command.FdPair[0]), ""))
+		//			}
+		//		}()
+	}
+	//}
 }
 
 func (container *Container) Start() (err error) {

@@ -1029,7 +1029,7 @@ func AttachProfiler(router *mux.Router) {
 	router.HandleFunc("/debug/pprof/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
 }
 
-func createRouter(eng *engine.Engine, logging, enableCors bool, dockerVersion string) (*mux.Router, error) {
+func CreateRouter(eng *engine.Engine, logging, enableCors bool, dockerVersion string) (*mux.Router, error) {
 	r := mux.NewRouter()
 	if os.Getenv("DEBUG") != "" {
 		AttachProfiler(r)
@@ -1109,7 +1109,7 @@ func createRouter(eng *engine.Engine, logging, enableCors bool, dockerVersion st
 // FIXME: refactor this to be part of Server and not require re-creating a new
 // router each time. This requires first moving ListenAndServe into Server.
 func ServeRequest(eng *engine.Engine, apiversion float64, w http.ResponseWriter, req *http.Request) error {
-	router, err := createRouter(eng, false, true, "")
+	router, err := CreateRouter(eng, false, true, "")
 	if err != nil {
 		return err
 	}
@@ -1121,7 +1121,7 @@ func ServeRequest(eng *engine.Engine, apiversion float64, w http.ResponseWriter,
 
 // ServeFD creates an http.Server and sets it up to serve given a socket activated
 // argument.
-func ServeFd(addr string, handle http.Handler) error {
+func ServeFd(addr string, r *mux.Router) error {
 	ls, e := systemd.ListenFD(addr)
 	if e != nil {
 		return e
@@ -1134,7 +1134,7 @@ func ServeFd(addr string, handle http.Handler) error {
 	for i := range ls {
 		listener := ls[i]
 		go func() {
-			httpSrv := http.Server{Handler: handle}
+			httpSrv := http.Server{Handler: r}
 			chErrors <- httpSrv.Serve(listener)
 		}()
 	}
@@ -1151,25 +1151,16 @@ func ServeFd(addr string, handle http.Handler) error {
 
 // ListenAndServe sets up the required http.Server and gets it listening for
 // each addr passed in and does protocol specific checking.
-func ListenAndServe(proto, addr string, eng *engine.Engine, logging, enableCors, admin bool, dockerVersion string) error {
-	r, err := createRouter(eng, logging, enableCors, dockerVersion)
-	if err != nil {
-		return err
-	}
-
-	if proto == "fd" {
-		return ServeFd(addr, r)
-	}
-
+func Listen(proto, addr string) (net.Listener, error) {
 	if proto == "unix" {
 		if err := syscall.Unlink(addr); err != nil && !os.IsNotExist(err) {
-			return err
+			return nil, err
 		}
 	}
 
 	l, err := listenbuffer.NewListenBuffer(proto, addr, activationLock, 15*time.Minute)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Basic error and sanity checking
@@ -1179,35 +1170,32 @@ func ListenAndServe(proto, addr string, eng *engine.Engine, logging, enableCors,
 			log.Println("/!\\ DON'T BIND ON ANOTHER IP ADDRESS THAN 127.0.0.1 IF YOU DON'T KNOW WHAT YOU'RE DOING /!\\")
 		}
 	case "unix":
-		if admin {
-			if err := os.Chmod(addr, 0600); err != nil {
-				return err
-			}
-		} else {
-			if err := os.Chmod(addr, 0660); err != nil {
-				return err
-			}
+		if err := os.Chmod(addr, 0660); err != nil {
+			return nil, err
+		}
 
-			groups, err := ioutil.ReadFile("/etc/group")
+		groups, err := ioutil.ReadFile("/etc/group")
+		if err != nil {
+			return nil, err
+		}
+		re := regexp.MustCompile("(^|\n)docker:.*?:([0-9]+)")
+		if gidMatch := re.FindStringSubmatch(string(groups)); gidMatch != nil {
+			gid, err := strconv.Atoi(gidMatch[2])
 			if err != nil {
-				return err
+				return nil, err
 			}
-			re := regexp.MustCompile("(^|\n)docker:.*?:([0-9]+)")
-			if gidMatch := re.FindStringSubmatch(string(groups)); gidMatch != nil {
-				gid, err := strconv.Atoi(gidMatch[2])
-				if err != nil {
-					return err
-				}
-				utils.Debugf("docker group found. gid: %d", gid)
-				if err := os.Chown(addr, 0, gid); err != nil {
-					return err
-				}
+			utils.Debugf("docker group found. gid: %d", gid)
+			if err := os.Chown(addr, 0, gid); err != nil {
+				return nil, err
 			}
 		}
 	default:
-		return fmt.Errorf("Invalid protocol format.")
+		return nil, fmt.Errorf("Invalid protocol format.")
 	}
+	return l, nil
+}
 
+func Serve(addr string, r *mux.Router, l net.Listener) error {
 	httpSrv := http.Server{Addr: addr, Handler: r}
 	return httpSrv.Serve(l)
 }
@@ -1217,7 +1205,7 @@ func ListenAndServe(proto, addr string, eng *engine.Engine, logging, enableCors,
 func ServeApi(job *engine.Job) engine.Status {
 	var (
 		protoAddrs = job.Args
-		chErrors   = make(chan error, len(protoAddrs)+1)
+		chErrors   = make(chan error, len(protoAddrs))
 	)
 	activationLock = make(chan struct{})
 
@@ -1225,15 +1213,27 @@ func ServeApi(job *engine.Job) engine.Status {
 		return job.Error(err)
 	}
 
+	r, err := CreateRouter(job.Eng, job.GetenvBool("Logging"), job.GetenvBool("EnableCors"), job.Getenv("Version"))
+	if err != nil {
+		return job.Error(err)
+	}
+
 	for _, protoAddr := range protoAddrs {
 		protoAddrParts := strings.SplitN(protoAddr, "://", 2)
 		go func() {
 			log.Printf("Listening for HTTP on %s (%s)\n", protoAddrParts[0], protoAddrParts[1])
-			chErrors <- ListenAndServe(protoAddrParts[0], protoAddrParts[1], job.Eng, job.GetenvBool("Logging"), job.GetenvBool("EnableCors"), false, job.Getenv("Version"))
+			if protoAddrParts[0] == "fd" {
+				chErrors <- ServeFd(protoAddrParts[1], r)
+			} else {
+				if l, err := Listen(protoAddrParts[0], protoAddrParts[1]); err != nil {
+					chErrors <- err
+				} else {
+					chErrors <- Serve(protoAddrParts[1], r, l)
+				}
+			}
 		}()
 	}
-	chErrors <- ListenAndServe("unix", "/var/run/docker.admin", job.Eng, false, false, true, job.Getenv("Version"))
-	for i := 0; i < len(protoAddrs)+1; i += 1 {
+	for i := 0; i < len(protoAddrs); i += 1 {
 		err := <-chErrors
 		if err != nil {
 			return job.Error(err)

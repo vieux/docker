@@ -1046,8 +1046,6 @@ func TestEnv(t *testing.T) {
 		"HOME=/",
 		"container=lxc",
 		"HOSTNAME=" + utils.TruncateID(container.ID),
-		"DOCKER_SOCKET=/.dockersock",
-		"DOCKER_FD=",
 		"FALSE=true",
 		"TRUE=false",
 		"TRICKY=tri",
@@ -1059,7 +1057,7 @@ func TestEnv(t *testing.T) {
 		t.Fatalf("Wrong environment: should be %d variables, not: '%s'\n", len(goodEnv), strings.Join(actualEnv, ", "))
 	}
 	for i := range goodEnv {
-		if !strings.HasPrefix(actualEnv[i], "DOCKER_FD=") && actualEnv[i] != goodEnv[i] {
+		if actualEnv[i] != goodEnv[i] {
 			t.Fatalf("Wrong environment variable: should be %s, not %s", goodEnv[i], actualEnv[i])
 		}
 	}

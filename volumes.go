@@ -65,10 +65,6 @@ func mountVolumesForContainer(container *Container, envPath string) error {
 	if err := mount.Mount(container.ResolvConfPath, filepath.Join(root, "/etc/resolv.conf"), "none", "bind,ro"); err != nil {
 		return err
 	}
-	if err := mount.Mount("/var/run/docker.admin", filepath.Join(root, "/.dockersock"), "none", "bind,rw"); err != nil {
-		return err
-	}
-
 	if container.HostnamePath != "" && container.HostsPath != "" {
 		if err := mount.Mount(container.HostnamePath, filepath.Join(root, "/etc/hostname"), "none", "bind,ro"); err != nil {
 			return err
@@ -107,7 +103,6 @@ func unmountVolumesForContainer(container *Container) {
 			filepath.Join(root, "/.dockerinit"),
 			filepath.Join(root, "/.dockerenv"),
 			filepath.Join(root, "/etc/resolv.conf"),
-			filepath.Join(root, "/.dockersock"),
 		}
 	)
 

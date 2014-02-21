@@ -112,9 +112,9 @@ type Command struct {
 	Network    *Network   `json:"network"` // if network is nil then networking is disabled
 	Config     []string   `json:"config"`  //  generic values that specific drivers can consume
 	Resources  *Resources `json:"resources"`
-
-	Terminal Terminal `json:"-"` // standard or tty terminal
-	Console  string   `json:"-"` // dev/console path
+	Terminal   Terminal   `json:"-"` // standard or tty terminal
+	Console    string     `json:"-"` // dev/console path
+	FdPair     [2]int     `json:fd_pair"`
 }
 
 // Return the pid of the process

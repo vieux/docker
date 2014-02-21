@@ -118,6 +118,10 @@ func (d *driver) Run(c *execdriver.Command, pipes *execdriver.Pipes, startCallba
 		params = append(params, "-w", c.WorkingDir)
 	}
 
+	if len(c.FdPair) == 2 {
+		params = append(params, "-fd", strconv.Itoa(c.FdPair[1]))
+	}
+
 	params = append(params, "--", c.Entrypoint)
 	params = append(params, c.Arguments...)
 
@@ -150,6 +154,10 @@ func (d *driver) Run(c *execdriver.Command, pipes *execdriver.Pipes, startCallba
 
 	if err := c.Start(); err != nil {
 		return -1, err
+	}
+
+	if len(c.FdPair) == 2 {
+		syscall.Close(c.FdPair[1])
 	}
 
 	var (
