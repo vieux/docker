@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/dotcloud/docker/api"
 	"github.com/dotcloud/docker/builtins"
+	"github.com/dotcloud/docker/docker/client"
 	"github.com/dotcloud/docker/dockerversion"
 	"github.com/dotcloud/docker/engine"
 	flag "github.com/dotcloud/docker/pkg/mflag"
@@ -122,19 +122,7 @@ func main() {
 			log.Fatal(err)
 		}
 	} else {
-		if flHosts.Len() > 1 {
-			log.Fatal("Please specify only one -H")
-		}
-		protoAddrParts := strings.SplitN(flHosts.GetAll()[0], "://", 2)
-		if err := api.ParseCommands(protoAddrParts[0], protoAddrParts[1], flag.Args()...); err != nil {
-			if sterr, ok := err.(*utils.StatusError); ok {
-				if sterr.Status != "" {
-					log.Println(sterr.Status)
-				}
-				os.Exit(sterr.StatusCode)
-			}
-			log.Fatal(err)
-		}
+		client.Run(flHosts)
 	}
 }
 
