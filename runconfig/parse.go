@@ -253,12 +253,12 @@ func parseLxcOpt(opt string) (string, string, error) {
 func parseNetworkMode(mode string, config *Config, hostConfig *HostConfig) error {
 	switch mode {
 	case "none":
-		if len(config.ExposedPorts) > 0 || len(hostConfig.PortBindings) > 0 {
+		if len(hostConfig.PortBindings) > 0 {
 			return fmt.Errorf("cannot publish any ports when networking is disabled")
 		}
 		config.NetworkDisabled = true
 	case "host":
-		if len(config.ExposedPorts) > 0 || len(hostConfig.PortBindings) > 0 {
+		if len(hostConfig.PortBindings) > 0 {
 			return fmt.Errorf("cannot publish any ports when host networking is enabled")
 		}
 		hostConfig.UseHostNetworkStack, config.NetworkDisabled = true, true
