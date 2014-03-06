@@ -424,8 +424,15 @@ func (container *Container) Start() (err error) {
 
 	if container.hostConfig.UseHostNetworkStack {
 		// use the hosts configuration
-		container.Config.Hostname = ""
-		container.Config.Domainname = ""
+		container.Config.Hostname, err = os.Hostname()
+		if err != nil {
+			return err
+		}
+		parts := strings.SplitN(container.Config.Hostname, ".", 2)
+		if len(parts) > 1 {
+			container.Config.Hostname = parts[0]
+			container.Config.Domainname = parts[1]
+		}
 		container.HostnamePath = "/etc/hostname"
 		container.HostsPath = "/etc/hosts"
 	} else if container.runtime.config.DisableNetwork {
