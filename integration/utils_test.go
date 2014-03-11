@@ -3,6 +3,12 @@ package docker
 import (
 	"bytes"
 	"fmt"
+	"github.com/dotcloud/docker/builtins"
+	"github.com/dotcloud/docker/engine"
+	"github.com/dotcloud/docker/runconfig"
+	"github.com/dotcloud/docker/runtime"
+	"github.com/dotcloud/docker/server"
+	"github.com/dotcloud/docker/utils"
 	"github.com/dotcloud/docker/vendor/src/code.google.com/p/go/src/pkg/archive/tar"
 	"io"
 	"io/ioutil"
@@ -13,13 +19,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/dotcloud/docker/builtins"
-	"github.com/dotcloud/docker/engine"
-	"github.com/dotcloud/docker/runconfig"
-	"github.com/dotcloud/docker/runtime"
-	"github.com/dotcloud/docker/server"
-	"github.com/dotcloud/docker/utils"
 )
 
 // This file contains utility functions for docker's unit test suite.
@@ -150,7 +149,7 @@ func getContainer(eng *engine.Engine, id string, t utils.Fataler) *runtime.Conta
 }
 
 func mkServerFromEngine(eng *engine.Engine, t utils.Fataler) *server.Server {
-	iSrv := eng.Hack_GetGlobalVar("httpapi.server")
+	iSrv := eng.Server
 	if iSrv == nil {
 		panic("Legacy server field not set in engine")
 	}
@@ -162,7 +161,7 @@ func mkServerFromEngine(eng *engine.Engine, t utils.Fataler) *server.Server {
 }
 
 func mkRuntimeFromEngine(eng *engine.Engine, t utils.Fataler) *runtime.Runtime {
-	iRuntime := eng.Hack_GetGlobalVar("httpapi.runtime")
+	iRuntime := eng.Runtime
 	if iRuntime == nil {
 		panic("Legacy runtime field not set in engine")
 	}

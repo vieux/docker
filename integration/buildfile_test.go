@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/dotcloud/docker/archive"
 	"github.com/dotcloud/docker/engine"
-	"github.com/dotcloud/docker/image"
 	"github.com/dotcloud/docker/nat"
 	"github.com/dotcloud/docker/server"
 	"github.com/dotcloud/docker/utils"
@@ -352,15 +351,11 @@ func TestBuild(t *testing.T) {
 	}
 }
 
-func buildImage(context testContextTemplate, t *testing.T, eng *engine.Engine, useCache bool) (*image.Image, error) {
+func buildImage(context testContextTemplate, t *testing.T, eng *engine.Engine, useCache bool) (*engine.Env, error) {
 	if eng == nil {
 		eng = NewTestEngine(t)
-		runtime := mkRuntimeFromEngine(eng, t)
-		// FIXME: we might not need runtime, why not simply nuke
-		// the engine?
-		defer nuke(runtime)
+		defer eng.Nuke()
 	}
-	srv := mkServerFromEngine(eng, t)
 
 	httpServer, err := mkTestingFileServer(context.remoteFiles)
 	if err != nil {
@@ -372,25 +367,29 @@ func buildImage(context testContextTemplate, t *testing.T, eng *engine.Engine, u
 	if idx < 0 {
 		t.Fatalf("could not get port from test http server address %s", httpServer.URL)
 	}
-	port := httpServer.URL[idx+1:]
-
-	iIP := eng.Hack_GetGlobalVar("httpapi.bridgeIP")
-	if iIP == nil {
-		t.Fatal("Legacy bridgeIP field not set in engine")
+	var (
+		port = httpServer.URL[idx+1:]
+		job  = eng.Job("bridge_ip")
+		IP   string
+	)
+	job.Stdout.AddString(&IP)
+	if err := job.Run(); err != nil {
+		return nil, err
 	}
-	ip, ok := iIP.(net.IP)
-	if !ok {
-		panic("Legacy bridgeIP field in engine does not cast to net.IP")
-	}
+	ip := net.ParseIP(IP)
 	dockerfile := constructDockerfile(context.dockerfile, ip, port)
-
-	buildfile := server.NewBuildFile(srv, ioutil.Discard, ioutil.Discard, false, useCache, false, ioutil.Discard, utils.NewStreamFormatter(false), nil, nil)
+	buildfile := server.NewBuildFile(eng, nil, ioutil.Discard, ioutil.Discard, false, useCache, false, ioutil.Discard, utils.NewStreamFormatter(false), nil, nil)
 	id, err := buildfile.Build(context.Archive(dockerfile, t))
 	if err != nil {
 		return nil, err
 	}
 
-	return srv.ImageInspect(id)
+	job = eng.Job("inspect", id, "image")
+	img, _ := job.Stdout.AddEnv()
+	if err := job.Run(); err != nil {
+		return nil, err
+	}
+	return img, nil
 }
 
 func TestVolume(t *testing.T) {
@@ -402,11 +401,11 @@ func TestVolume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if len(img.Config.Volumes) == 0 {
+	config := img.GetSubEnv("Config")
+	if len(config.GetList("Volumes")) == 0 {
 		t.Fail()
 	}
-	for key := range img.Config.Volumes {
+	for _, key := range config.GetList("Volumes") {
 		if key != "/test" {
 			t.Fail()
 		}
@@ -422,7 +421,7 @@ func TestBuildMaintainer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if img.Author != "dockerio" {
+	if img.Get("Author") != "dockerio" {
 		t.Fail()
 	}
 }
@@ -435,8 +434,8 @@ func TestBuildUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if img.Config.User != "dockerio" {
+	config := img.GetSubEnv("Config")
+	if config.Get("User") != "dockerio" {
 		t.Fail()
 	}
 }
@@ -455,8 +454,9 @@ func TestBuildRelativeWorkdir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if img.Config.WorkingDir != "/test2/test3" {
-		t.Fatalf("Expected workdir to be '/test2/test3', received '%s'", img.Config.WorkingDir)
+	config := img.GetSubEnv("Config")
+	if config.Get("WorkingDir") != "/test2/test3" {
+		t.Fatalf("Expected workdir to be '/test2/test3', received '%s'", config.Get("WorkingDir"))
 	}
 }
 
@@ -469,9 +469,9 @@ func TestBuildEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	config := img.GetSubEnv("Config")
 	hasEnv := false
-	for _, envVar := range img.Config.Env {
+	for _, envVar := range config.GetList("Env") {
 		if envVar == "port=4243" {
 			hasEnv = true
 			break
@@ -491,13 +491,13 @@ func TestBuildCmd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if img.Config.Cmd[0] != "/bin/echo" {
-		t.Log(img.Config.Cmd[0])
+	config := img.GetSubEnv("Config")
+	if config.GetList("Cmd")[0] != "/bin/echo" {
+		t.Log(config.Get("Cmd")[0])
 		t.Fail()
 	}
-	if img.Config.Cmd[1] != "Hello World" {
-		t.Log(img.Config.Cmd[1])
+	if config.GetList("Cmd")[1] != "Hello World" {
+		t.Log(config.Get("Cmd")[1])
 		t.Fail()
 	}
 }
@@ -511,8 +511,10 @@ func TestBuildExpose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if _, exists := img.Config.ExposedPorts[nat.NewPort("tcp", "4243")]; !exists {
+	var ExposedPorts map[nat.Port]struct{}
+	config := img.GetSubEnv("config")
+	config.GetJson("ExposedPorts", &ExposedPorts)
+	if _, exists := ExposedPorts[nat.NewPort("tcp", "4243")]; !exists {
 		t.Fail()
 	}
 }
@@ -526,9 +528,9 @@ func TestBuildEntrypoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if img.Config.Entrypoint[0] != "/bin/echo" {
-		t.Log(img.Config.Entrypoint[0])
+	config := img.GetSubEnv("Config")
+	if config.GetList("Entrypoint")[0] != "/bin/echo" {
+		t.Log(config.GetList("Entrypoint")[0])
 		t.Fail()
 	}
 }
@@ -537,7 +539,7 @@ func TestBuildEntrypoint(t *testing.T) {
 // utilizing cache
 func TestBuildEntrypointRunCleanup(t *testing.T) {
 	eng := NewTestEngine(t)
-	defer nuke(mkRuntimeFromEngine(eng, t))
+	defer eng.Nuke()
 
 	img, err := buildImage(testContextTemplate{`
         from {IMAGE}
@@ -558,30 +560,29 @@ func TestBuildEntrypointRunCleanup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if len(img.Config.Cmd) != 0 {
+	if len(img.GetSubEnv("Config").GetList("Cmd")) != 0 {
 		t.Fail()
 	}
 }
 
 func checkCacheBehavior(t *testing.T, template testContextTemplate, expectHit bool) (imageId string) {
 	eng := NewTestEngine(t)
-	defer nuke(mkRuntimeFromEngine(eng, t))
+	defer eng.Nuke()
 
 	img, err := buildImage(template, t, eng, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	imageId = img.ID
+	imageId = img.Get("Id")
 
 	img, err = buildImage(template, t, eng, expectHit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if hit := imageId == img.ID; hit != expectHit {
-		t.Fatalf("Cache misbehavior, got hit=%t, expected hit=%t: (first: %s, second %s)", hit, expectHit, imageId, img.ID)
+	if hit := imageId == img.Get("Id"); hit != expectHit {
+		t.Fatalf("Cache misbehavior, got hit=%t, expected hit=%t: (first: %s, second %s)", hit, expectHit, imageId, img.Get("Id"))
 	}
 	return
 }
@@ -592,15 +593,15 @@ func checkCacheBehaviorFromEngime(t *testing.T, template testContextTemplate, ex
 		t.Fatal(err)
 	}
 
-	imageId = img.ID
+	imageId = img.Get("Id")
 
 	img, err = buildImage(template, t, eng, expectHit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if hit := imageId == img.ID; hit != expectHit {
-		t.Fatalf("Cache misbehavior, got hit=%t, expected hit=%t: (first: %s, second %s)", hit, expectHit, imageId, img.ID)
+	if hit := imageId == img.Get("Id"); hit != expectHit {
+		t.Fatalf("Cache misbehavior, got hit=%t, expected hit=%t: (first: %s, second %s)", hit, expectHit, imageId, img.Get("Id"))
 	}
 	return
 }
@@ -650,7 +651,7 @@ func TestBuildADDLocalFileWithCache(t *testing.T) {
 		},
 		nil}
 	eng := NewTestEngine(t)
-	defer nuke(mkRuntimeFromEngine(eng, t))
+	defer eng.Nuke()
 
 	id1 := checkCacheBehaviorFromEngime(t, template, true, eng)
 	template.files = append(template.files, [2]string{"bar", "hello2"})
@@ -786,8 +787,7 @@ func TestBuildADDLocalAndRemoteFilesWithoutCache(t *testing.T) {
 
 func TestForbiddenContextPath(t *testing.T) {
 	eng := NewTestEngine(t)
-	defer nuke(mkRuntimeFromEngine(eng, t))
-	srv := mkServerFromEngine(eng, t)
+	defer eng.Nuke()
 
 	context := testContextTemplate{`
         from {IMAGE}
@@ -806,19 +806,18 @@ func TestForbiddenContextPath(t *testing.T) {
 	if idx < 0 {
 		t.Fatalf("could not get port from test http server address %s", httpServer.URL)
 	}
-	port := httpServer.URL[idx+1:]
-
-	iIP := eng.Hack_GetGlobalVar("httpapi.bridgeIP")
-	if iIP == nil {
-		t.Fatal("Legacy bridgeIP field not set in engine")
+	var (
+		port = httpServer.URL[idx+1:]
+		job  = eng.Job("bridge_ip")
+		IP   string
+	)
+	job.Stdout.AddString(&IP)
+	if err := job.Run(); err != nil {
+		t.Fatal(err)
 	}
-	ip, ok := iIP.(net.IP)
-	if !ok {
-		panic("Legacy bridgeIP field in engine does not cast to net.IP")
-	}
+	ip := net.ParseIP(IP)
 	dockerfile := constructDockerfile(context.dockerfile, ip, port)
-
-	buildfile := server.NewBuildFile(srv, ioutil.Discard, ioutil.Discard, false, true, false, ioutil.Discard, utils.NewStreamFormatter(false), nil, nil)
+	buildfile := server.NewBuildFile(eng, nil, ioutil.Discard, ioutil.Discard, false, true, false, ioutil.Discard, utils.NewStreamFormatter(false), nil, nil)
 	_, err = buildfile.Build(context.Archive(dockerfile, t))
 
 	if err == nil {
@@ -834,7 +833,7 @@ func TestForbiddenContextPath(t *testing.T) {
 
 func TestBuildADDFileNotFound(t *testing.T) {
 	eng := NewTestEngine(t)
-	defer nuke(mkRuntimeFromEngine(eng, t))
+	defer eng.Nuke()
 
 	context := testContextTemplate{`
         from {IMAGE}
@@ -852,19 +851,18 @@ func TestBuildADDFileNotFound(t *testing.T) {
 	if idx < 0 {
 		t.Fatalf("could not get port from test http server address %s", httpServer.URL)
 	}
-	port := httpServer.URL[idx+1:]
-
-	iIP := eng.Hack_GetGlobalVar("httpapi.bridgeIP")
-	if iIP == nil {
-		t.Fatal("Legacy bridgeIP field not set in engine")
+	var (
+		port = httpServer.URL[idx+1:]
+		job  = eng.Job("bridge_ip")
+		IP   string
+	)
+	job.Stdout.AddString(&IP)
+	if err := job.Run(); err != nil {
+		t.Fatal(err)
 	}
-	ip, ok := iIP.(net.IP)
-	if !ok {
-		panic("Legacy bridgeIP field in engine does not cast to net.IP")
-	}
+	ip := net.ParseIP(IP)
 	dockerfile := constructDockerfile(context.dockerfile, ip, port)
-
-	buildfile := server.NewBuildFile(mkServerFromEngine(eng, t), ioutil.Discard, ioutil.Discard, false, true, false, ioutil.Discard, utils.NewStreamFormatter(false), nil, nil)
+	buildfile := server.NewBuildFile(eng, nil, ioutil.Discard, ioutil.Discard, false, true, false, ioutil.Discard, utils.NewStreamFormatter(false), nil, nil)
 	_, err = buildfile.Build(context.Archive(dockerfile, t))
 
 	if err == nil {
@@ -880,7 +878,7 @@ func TestBuildADDFileNotFound(t *testing.T) {
 
 func TestBuildInheritance(t *testing.T) {
 	eng := NewTestEngine(t)
-	defer nuke(mkRuntimeFromEngine(eng, t))
+	defer eng.Nuke()
 
 	img, err := buildImage(testContextTemplate{`
             from {IMAGE}
@@ -895,7 +893,7 @@ func TestBuildInheritance(t *testing.T) {
 	img2, _ := buildImage(testContextTemplate{fmt.Sprintf(`
             from %s
             entrypoint ["/bin/echo"]
-            `, img.ID),
+            `, img.Get("Id")),
 		nil, nil}, t, eng, true)
 
 	if err != nil {
@@ -903,12 +901,15 @@ func TestBuildInheritance(t *testing.T) {
 	}
 
 	// from child
-	if img2.Config.Entrypoint[0] != "/bin/echo" {
+	if img2.GetSubEnv("config").GetList("Entrypoint")[0] != "/bin/echo" {
 		t.Fail()
 	}
 
 	// from parent
-	if _, exists := img.Config.ExposedPorts[nat.NewPort("tcp", "4243")]; !exists {
+	var ExposedPorts map[nat.Port]struct{}
+	config := img.GetSubEnv("config")
+	config.GetJson("ExposedPorts", &ExposedPorts)
+	if _, exists := ExposedPorts[nat.NewPort("tcp", "4243")]; !exists {
 		t.Fail()
 	}
 }

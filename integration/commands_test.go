@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/dotcloud/docker/api"
 	"github.com/dotcloud/docker/engine"
-	"github.com/dotcloud/docker/image"
 	"github.com/dotcloud/docker/pkg/term"
 	"github.com/dotcloud/docker/runtime"
 	"github.com/dotcloud/docker/utils"
@@ -832,7 +831,7 @@ func TestImagesViz(t *testing.T) {
 			"digraph docker {",
 			fmt.Sprintf("base -> \"%s\" \\[style=invis]", unitTestImageIDShort),
 			fmt.Sprintf("label=\"%s\\\\n%s:latest\"", unitTestImageIDShort, unitTestImageName),
-			fmt.Sprintf("label=\"%s\\\\n%s:%s\"", utils.TruncateID(image.ID), "test", "latest"),
+			fmt.Sprintf("label=\"%s\\\\n%s:%s\"", utils.TruncateID(image.Get("Id")), "test", "latest"),
 			"base \\[style=invisible]",
 		}
 
@@ -882,7 +881,7 @@ func TestImagesTree(t *testing.T) {
 			"(?m)   └─[0-9a-f]+.*",
 			"(?m)    └─[0-9a-f]+.*",
 			"(?m)      └─[0-9a-f]+.*",
-			fmt.Sprintf("(?m)^        └─%s Virtual Size: \\d+.\\d+ MB Tags: test:latest", utils.TruncateID(image.ID)),
+			fmt.Sprintf("(?m)^        └─%s Virtual Size: \\d+.\\d+ MB Tags: test:latest", utils.TruncateID(image.Get("Id"))),
 		}
 
 		compiledRegexps := []*regexp.Regexp{}
@@ -903,7 +902,7 @@ func TestImagesTree(t *testing.T) {
 	})
 }
 
-func buildTestImages(t *testing.T, eng *engine.Engine) *image.Image {
+func buildTestImages(t *testing.T, eng *engine.Engine) *engine.Env {
 
 	var testBuilder = testContextTemplate{
 		`
@@ -921,7 +920,7 @@ run    [ "$(ls -d /var/run/sshd)" = "/var/run/sshd" ]
 		t.Fatal(err)
 	}
 
-	if err := eng.Job("tag", image.ID, "test").Run(); err != nil {
+	if err := eng.Job("tag", image.Get("Id"), "test").Run(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1021,7 +1020,6 @@ func TestContainerOrphaning(t *testing.T) {
 	// setup a CLI and server
 	cli := api.NewDockerCli(nil, ioutil.Discard, ioutil.Discard, testDaemonProto, testDaemonAddr, nil)
 	defer cleanup(globalEngine, t)
-	srv := mkServerFromEngine(globalEngine, t)
 
 	// closure to build something
 	buildSomething := func(template string, image string) string {
@@ -1032,11 +1030,12 @@ func TestContainerOrphaning(t *testing.T) {
 		if err := cli.CmdBuild("-t", image, tmpDir); err != nil {
 			t.Fatal(err)
 		}
-		img, err := srv.ImageInspect(image)
-		if err != nil {
+		job := globalEngine.Job("inspect", image, "image")
+		img, _ := job.Stdout.AddEnv()
+		if err := job.Run(); err != nil {
 			t.Fatal(err)
 		}
-		return img.ID
+		return img.Get("Id")
 	}
 
 	// build an image
@@ -1061,8 +1060,12 @@ func TestContainerOrphaning(t *testing.T) {
 	buildSomething(template2, imageName)
 
 	// remove the second image by name
-	resp := engine.NewTable("", 0)
-	if err := srv.DeleteImage(imageName, resp, true, false, false); err == nil {
+	job := globalEngine.Job("image_delete", imageName)
+	resp, err := job.Stdout.AddListTable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := job.Run(); err == nil {
 		t.Fatal("Expected error, got none")
 	}
 

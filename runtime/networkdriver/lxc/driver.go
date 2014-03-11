@@ -127,6 +127,11 @@ func InitDriver(job *engine.Job) engine.Status {
 
 	bridgeNetwork = network
 
+	job.Eng.Register("bridge_ip", func(job *engine.Job) engine.Status {
+		fmt.Fprintf(job.Stdout, "%s", bridgeNetwork.IP.String())
+		return engine.StatusOK
+	})
+
 	for name, f := range map[string]engine.Handler{
 		"allocate_interface": Allocate,
 		"release_interface":  Release,

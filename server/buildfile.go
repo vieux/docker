@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/dotcloud/docker/archive"
+	"github.com/dotcloud/docker/engine"
 	"github.com/dotcloud/docker/nat"
 	"github.com/dotcloud/docker/registry"
 	"github.com/dotcloud/docker/runconfig"
@@ -35,8 +36,8 @@ type BuildFile interface {
 }
 
 type buildFile struct {
+	eng     *engine.Engine
 	runtime *runtime.Runtime
-	srv     *Server
 
 	image      string
 	maintainer string
@@ -65,8 +66,7 @@ type buildFile struct {
 
 func (b *buildFile) clearTmp(containers map[string]struct{}) {
 	for c := range containers {
-		tmp := b.runtime.Get(c)
-		if err := b.runtime.Destroy(tmp); err != nil {
+		if err := b.eng.Job("container_delete", c).Run(); err != nil {
 			fmt.Fprintf(b.outStream, "Error removing intermediate container %s: %s\n", utils.TruncateID(c), err.Error())
 		} else {
 			fmt.Fprintf(b.outStream, "Removing intermediate container %s\n", utils.TruncateID(c))
@@ -89,7 +89,7 @@ func (b *buildFile) CmdFrom(name string) error {
 				resolvedAuth := b.configFile.ResolveAuthConfig(endpoint)
 				pullRegistryAuth = &resolvedAuth
 			}
-			job := b.srv.Eng.Job("pull", remote, tag)
+			job := b.eng.Job("pull", remote, tag)
 			job.SetenvBool("json", b.sf.Json())
 			job.SetenvBool("parallel", true)
 			job.SetenvJson("authConfig", pullRegistryAuth)
@@ -161,12 +161,18 @@ func (b *buildFile) CmdMaintainer(name string) error {
 // is any error, it returns `(false, err)`.
 func (b *buildFile) probeCache() (bool, error) {
 	if b.utilizeCache {
-		if cache, err := b.srv.ImageGetCached(b.image, b.config); err != nil {
+		var (
+			job   = b.eng.Job("cache", b.image)
+			cache string
+		)
+		job.Stdout.AddString(&cache)
+		job.SetenvJson("config", b.config)
+		if err := job.Run(); err != nil {
 			return false, err
-		} else if cache != nil {
+		} else if cache != "" {
 			fmt.Fprintf(b.outStream, " ---> Using cache\n")
 			utils.Debugf("[BUILDER] Use cached version")
-			b.image = cache.ID
+			b.image = cache
 			return true, nil
 		} else {
 			utils.Debugf("[BUILDER] Cache miss")
@@ -786,10 +792,10 @@ func (b *buildFile) BuildStep(name, expression string) error {
 	return nil
 }
 
-func NewBuildFile(srv *Server, outStream, errStream io.Writer, verbose, utilizeCache, rm bool, outOld io.Writer, sf *utils.StreamFormatter, auth *registry.AuthConfig, authConfigFile *registry.ConfigFile) BuildFile {
+func NewBuildFile(eng *engine.Engine, runtime *runtime.Runtime, outStream, errStream io.Writer, verbose, utilizeCache, rm bool, outOld io.Writer, sf *utils.StreamFormatter, auth *registry.AuthConfig, authConfigFile *registry.ConfigFile) BuildFile {
 	return &buildFile{
-		runtime:       srv.runtime,
-		srv:           srv,
+		eng:           eng,
+		runtime:       runtime,
 		config:        &runconfig.Config{},
 		outStream:     outStream,
 		errStream:     errStream,

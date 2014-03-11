@@ -94,11 +94,23 @@ func InitServer(job *engine.Job) engine.Status {
 		"push":             srv.ImagePush,
 		"containers":       srv.Containers,
 		"auth":             srv.Auth,
+		"cache":            srv.ImageGetCached,
+
+		"nuke": srv.Nuke,
 	} {
 		if err := job.Eng.Register(name, handler); err != nil {
 			return job.Error(err)
 		}
 	}
+
+	//only for tests
+	job.Eng.Server = srv
+	job.Eng.Runtime = srv.runtime
+	return engine.StatusOK
+}
+
+func (srv *Server) Nuke(job *engine.Job) engine.Status {
+	srv.runtime.Nuke()
 	return engine.StatusOK
 }
 
@@ -458,7 +470,7 @@ func (srv *Server) Build(job *engine.Job) engine.Status {
 	defer context.Close()
 
 	sf := utils.NewStreamFormatter(job.GetenvBool("json"))
-	b := NewBuildFile(srv,
+	b := NewBuildFile(srv.Eng, srv.runtime,
 		&utils.StdoutFormater{
 			Writer:          job.Stdout,
 			StreamFormatter: sf,
@@ -1991,11 +2003,19 @@ func (srv *Server) canDeleteImage(imgID string) error {
 	return nil
 }
 
-func (srv *Server) ImageGetCached(imgID string, config *runconfig.Config) (*image.Image, error) {
+func (srv *Server) ImageGetCached(job *engine.Job) engine.Status {
+	if n := len(job.Args); n != 1 {
+		return job.Errorf("Usage: %s IMAGE", job.Name)
+	}
+	var config runconfig.Config
+	if err := job.GetenvJson("config", &config); err != nil {
+		return job.Error(err)
+	}
+
 	// Retrieve all images
 	images, err := srv.runtime.Graph().Map()
 	if err != nil {
-		return nil, err
+		return job.Error(err)
 	}
 
 	// Store the tree in a map of map (map[parentId][childId])
@@ -2009,18 +2029,21 @@ func (srv *Server) ImageGetCached(imgID string, config *runconfig.Config) (*imag
 
 	// Loop on the children of the given image and check the config
 	var match *image.Image
-	for elem := range imageMap[imgID] {
+	for elem := range imageMap[job.Args[0]] {
 		img, err := srv.runtime.Graph().Get(elem)
 		if err != nil {
-			return nil, err
+			return job.Error(err)
 		}
-		if runconfig.Compare(&img.ContainerConfig, config) {
+		if runconfig.Compare(&img.ContainerConfig, &config) {
 			if match == nil || match.Created.Before(img.Created) {
 				match = img
 			}
 		}
 	}
-	return match, nil
+	if match != nil {
+		job.Stdout.Write([]byte(match.ID))
+	}
+	return engine.StatusOK
 }
 
 func (srv *Server) RegisterLinks(container *runtime.Container, hostConfig *runconfig.HostConfig) error {
