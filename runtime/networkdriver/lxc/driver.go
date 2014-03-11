@@ -127,9 +127,6 @@ func InitDriver(job *engine.Job) engine.Status {
 
 	bridgeNetwork = network
 
-	// https://github.com/dotcloud/docker/issues/2768
-	job.Eng.Hack_SetGlobalVar("httpapi.bridgeIP", bridgeNetwork.IP)
-
 	for name, f := range map[string]engine.Handler{
 		"allocate_interface": Allocate,
 		"release_interface":  Release,

@@ -39,7 +39,6 @@ func unregister(name string) {
 type Engine struct {
 	root     string
 	handlers map[string]Handler
-	hack     Hack // data for temporary hackery (see hack.go)
 	id       string
 	Stdout   io.Writer
 	Stderr   io.Writer

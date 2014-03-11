@@ -59,8 +59,6 @@ func InitServer(job *engine.Job) engine.Status {
 		srv.Close()
 		os.Exit(0)
 	}()
-	job.Eng.Hack_SetGlobalVar("httpapi.server", srv)
-	job.Eng.Hack_SetGlobalVar("httpapi.runtime", srv.runtime)
 
 	for name, handler := range map[string]engine.Handler{
 		"export":           srv.ContainerExport,
