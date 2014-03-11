@@ -639,7 +639,11 @@ func (container *Container) StderrPipe() (io.ReadCloser, error) {
 
 func (container *Container) buildHostname() {
 	container.HostnamePath = path.Join(container.root, "hostname")
-	ioutil.WriteFile(container.HostnamePath, []byte(container.Config.Hostname+"\n"), 0644)
+	if container.Config.Domainname != "" {
+		ioutil.WriteFile(container.HostnamePath, []byte(fmt.Sprintf("%s.%s\n", container.Config.Hostname, container.Config.Domainname)), 0644)
+	} else {
+		ioutil.WriteFile(container.HostnamePath, []byte(container.Config.Hostname+"\n"), 0644)
+	}
 }
 
 func (container *Container) buildHostnameAndHostsFiles(IP string) {
