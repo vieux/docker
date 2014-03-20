@@ -11,15 +11,18 @@ type progressReader struct {
 	output     io.Writer     // Where to send progress bar to
 	progress   JSONProgress
 	lastUpdate int // How many bytes read at least update
-	ID         string
 	action     string
 	sf         *StreamFormatter
 	newLine    bool
+	global     *JSONProgress
 }
 
 func (r *progressReader) Read(p []byte) (n int, err error) {
 	read, err := r.reader.Read(p)
 	r.progress.Current += read
+	if r.global != nil {
+		r.global.Current += read
+	}
 	updateEvery := 1024 * 512 //512kB
 	if r.progress.Total > 0 {
 		// Update progress for every 1% read if 1% < 512kB
@@ -28,7 +31,10 @@ func (r *progressReader) Read(p []byte) (n int, err error) {
 		}
 	}
 	if r.progress.Current-r.lastUpdate > updateEvery || err != nil {
-		r.output.Write(r.sf.FormatProgress(r.ID, r.action, &r.progress))
+		r.output.Write(r.sf.FormatProgress(r.progress.key, r.action, &r.progress))
+		if r.global != nil {
+			r.output.Write(r.sf.FormatProgress(r.global.key, r.action, r.global))
+		}
 		r.lastUpdate = r.progress.Current
 	}
 	// Send newline when complete
@@ -39,17 +45,17 @@ func (r *progressReader) Read(p []byte) (n int, err error) {
 }
 func (r *progressReader) Close() error {
 	r.progress.Current = r.progress.Total
-	r.output.Write(r.sf.FormatProgress(r.ID, r.action, &r.progress))
+	r.output.Write(r.sf.FormatProgress(r.progress.key, r.action, &r.progress))
 	return r.reader.Close()
 }
-func ProgressReader(r io.ReadCloser, size int, output io.Writer, sf *StreamFormatter, newline bool, ID, action string) *progressReader {
+func ProgressReader(r io.ReadCloser, size int, output io.Writer, sf *StreamFormatter, newline bool, ID, action string, global *JSONProgress) *progressReader {
 	return &progressReader{
 		reader:   r,
 		output:   NewWriteFlusher(output),
-		ID:       ID,
 		action:   action,
-		progress: JSONProgress{Total: size, Start: time.Now().UTC().Unix()},
+		progress: JSONProgress{key: ID, Total: size, Start: time.Now().UTC().Unix()},
 		sf:       sf,
 		newLine:  newline,
+		global:   global,
 	}
 }

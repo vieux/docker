@@ -19,10 +19,15 @@ func (e *JSONError) Error() string {
 }
 
 type JSONProgress struct {
+	key        string
 	terminalFd uintptr
 	Current    int   `json:"current,omitempty"`
 	Total      int   `json:"total,omitempty"`
 	Start      int64 `json:"start,omitempty"`
+}
+
+func NewJSONProgress(key string) *JSONProgress {
+	return &JSONProgress{key: key}
 }
 
 func (p *JSONProgress) String() string {
