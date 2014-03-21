@@ -1091,25 +1091,24 @@ func (srv *Server) ImageTag(job *engine.Job) engine.Status {
 	}
 	return engine.StatusOK
 }
-
-func (srv *Server) pullImage(localname string, r *registry.Registry, out io.Writer, imgID, endpoint string, token []string, sf *utils.StreamFormatter) error {
+func (srv *Server) pullImageMetadata(r *registry.Registry, out io.Writer, imgID, endpoint string, token []string, sf *utils.StreamFormatter) ([]string, map[string][]byte, map[string]int, int, error) {
 	history, err := r.GetRemoteHistory(imgID, endpoint, token)
 	if err != nil {
-		return err
+		return nil, nil, nil, 0, err
 	}
-	out.Write(sf.FormatProgress(localname, "Pulling dependent layers", nil))
+	out.Write(sf.FormatProgress(utils.TruncateID(imgID), "Pulling dependent layers", nil))
 	// FIXME: Try to stream the images?
 	// FIXME: Launch the getRemoteImage() in goroutines
 
 	var (
+		ids      []string
 		imgsJSON = make(map[string][]byte)
 		imgsSize = make(map[string]int)
-		global   = utils.NewJSONProgress(localname)
+		total    int
 	)
 
 	for i := len(history) - 1; i >= 0; i-- {
 		id := history[i]
-
 		// ensure no two downloads of the same layer happen at the same time
 		if c, err := srv.poolAdd("pull", "layer:"+id); err != nil {
 			utils.Errorf("Image (id: %s) pull is already running, skipping: %v", id, err)
@@ -1129,20 +1128,23 @@ func (srv *Server) pullImage(localname string, r *registry.Registry, out io.Writ
 				imgJSON, imgSize, err = r.GetRemoteImageJSON(id, endpoint, token)
 				if err != nil && j == retries {
 					out.Write(sf.FormatProgress(utils.TruncateID(id), "Error pulling dependent layers", nil))
-					return err
+					return nil, nil, nil, 0, err
 				} else if err != nil {
 					time.Sleep(time.Duration(j) * 500 * time.Millisecond)
 					continue
 				}
 			}
+			ids = append(ids, id)
 			imgsJSON[id] = imgJSON
 			imgsSize[id] = imgSize
-			global.Total += imgSize
+			total += imgSize
 		}
 	}
+	return ids, imgsJSON, imgsSize, total, nil
+}
 
-	for i := len(history) - 1; i >= 0; i-- {
-		id := history[i]
+func (srv *Server) pullImageLayer(global *utils.JSONProgress, r *registry.Registry, out io.Writer, imgID, endpoint string, token []string, sf *utils.StreamFormatter, ids []string, imgsJSON map[string][]byte, imgsSize map[string]int) error {
+	for _, id := range ids {
 
 		if !srv.runtime.Graph().Exists(id) {
 			img, err := image.NewImgJSON(imgsJSON[id])
@@ -1166,12 +1168,13 @@ func (srv *Server) pullImage(localname string, r *registry.Registry, out io.Writ
 		}
 		out.Write(sf.FormatProgress(utils.TruncateID(id), "Download complete", nil))
 	}
-	out.Write(sf.FormatProgress(localname, "Download complete", nil))
 	return nil
 }
 
 func (srv *Server) pullRepository(r *registry.Registry, out io.Writer, localName, remoteName, askedTag string, sf *utils.StreamFormatter, parallel bool) error {
 	out.Write(sf.FormatStatus("", "Pulling repository %s", localName))
+
+	var global = utils.NewJSONProgress(localName)
 
 	repoData, err := r.GetRepositoryData(remoteName)
 	if err != nil {
@@ -1248,7 +1251,18 @@ func (srv *Server) pullRepository(r *registry.Registry, out io.Writer, localName
 			var lastErr error
 			for _, ep := range repoData.Endpoints {
 				out.Write(sf.FormatProgress(utils.TruncateID(img.ID), fmt.Sprintf("Pulling image (%s) from %s, endpoint: %s", img.Tag, localName, ep), nil))
-				if err := srv.pullImage(fmt.Sprintf("%s:%s", localName, img.Tag), r, out, img.ID, ep, repoData.Tokens, sf); err != nil {
+
+				ids, imgsJSON, imgsSize, total, err := srv.pullImageMetadata(r, out, img.ID, ep, repoData.Tokens, sf)
+				if err != nil {
+					// Its not ideal that only the last error  is returned, it would be better to concatenate the errors.
+					// As the error is also given to the output stream the user will see the error.
+					lastErr = err
+					out.Write(sf.FormatProgress(utils.TruncateID(img.ID), fmt.Sprintf("Error pulling image (%s) from %s, endpoint: %s, %s", img.Tag, localName, ep, err), nil))
+					continue
+				}
+				global.Total += total
+
+				if err := srv.pullImageLayer(global, r, out, img.ID, ep, repoData.Tokens, sf, ids, imgsJSON, imgsSize); err != nil {
 					// Its not ideal that only the last error  is returned, it would be better to concatenate the errors.
 					// As the error is also given to the output stream the user will see the error.
 					lastErr = err
