@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+	"runtime"
 	"testing"
 )
 
@@ -70,5 +72,36 @@ func TestJobStderrString(t *testing.T) {
 	}
 	if expectedOutput := "Something happened"; output != expectedOutput {
 		t.Fatalf("Stderr last line:\nExpected: %v\nReceived: %v", expectedOutput, output)
+	}
+}
+
+func TestJobAddString(t *testing.T) {
+	eng := New()
+	eng.Register("say_something", func(job *Job) Status {
+		fmt.Fprintln(job.Stdout, "line1")
+		fmt.Fprintln(job.Stdout, "line2")
+		fmt.Fprintln(job.Stdout, "line3")
+		return StatusOK
+	})
+	job := eng.Job("say_something")
+	var output1, output2 string
+	if err := job.Stdout.AddString(&output1); err != nil {
+		t.Fatal(err)
+	}
+	if err := job.Stdout.AddString(&output2); err != nil {
+		t.Fatal(err)
+	}
+	numGoroutine := runtime.NumGoroutine()
+	if err := job.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if expectedOutput := "line3"; output1 != expectedOutput {
+		t.Fatalf("Stderr last line:\nExpected: %v\nReceived: %v", expectedOutput, output1)
+	}
+	if expectedOutput := "line3"; output2 != expectedOutput {
+		t.Fatalf("Stderr last line:\nExpected: %v\nReceived: %v", expectedOutput, output2)
+	}
+	if newNumGoroutine := runtime.NumGoroutine(); newNumGoroutine != numGoroutine {
+		t.Fatalf("Goroutine leak, was %d, is now %d", numGoroutine, newNumGoroutine)
 	}
 }
