@@ -3,15 +3,17 @@ package archive
 import (
 	"bytes"
 	"fmt"
-	"github.com/dotcloud/docker/pkg/system"
-	"github.com/dotcloud/docker/utils"
-	"github.com/dotcloud/docker/vendor/src/code.google.com/p/go/src/pkg/archive/tar"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
+
+	"github.com/dotcloud/docker/pkg/system"
+	"github.com/dotcloud/docker/utils"
+	"github.com/dotcloud/docker/vendor/src/code.google.com/p/go/src/pkg/archive/tar"
 )
 
 type ChangeType int
@@ -293,13 +295,25 @@ func collectFileInfo(sourceDir string) (*FileInfo, error) {
 
 // Compare two directories and generate an array of Change objects describing the changes
 func ChangesDirs(newDir, oldDir string) ([]Change, error) {
-	oldRoot, err := collectFileInfo(oldDir)
-	if err != nil {
-		return nil, err
-	}
-	newRoot, err := collectFileInfo(newDir)
-	if err != nil {
-		return nil, err
+	var (
+		oldRoot, newRoot *FileInfo
+		wg               sync.WaitGroup
+		err1, err2       error
+	)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		oldRoot, err1 = collectFileInfo(oldDir)
+	}()
+	go func() {
+		defer wg.Done()
+		newRoot, err2 = collectFileInfo(newDir)
+	}()
+	wg.Wait()
+	if err1 != nil {
+		return nil, err1
+	} else if err2 != nil {
+		return nil, err2
 	}
 
 	return newRoot.Changes(oldRoot), nil
