@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -297,22 +296,23 @@ func collectFileInfo(sourceDir string) (*FileInfo, error) {
 func ChangesDirs(newDir, oldDir string) ([]Change, error) {
 	var (
 		oldRoot, newRoot *FileInfo
-		wg               sync.WaitGroup
 		err1, err2       error
+		lock             = make(chan bool, 2)
 	)
-	wg.Add(2)
 	go func() {
-		defer wg.Done()
 		oldRoot, err1 = collectFileInfo(oldDir)
+		lock <- true
 	}()
 	go func() {
-		defer wg.Done()
 		newRoot, err2 = collectFileInfo(newDir)
+		lock <- true
 	}()
-	wg.Wait()
+	<-lock
+	<-lock
 	if err1 != nil {
 		return nil, err1
-	} else if err2 != nil {
+	}
+	if err2 != nil {
 		return nil, err2
 	}
 
