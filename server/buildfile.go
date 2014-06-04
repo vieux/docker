@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/dotcloud/docker/archive"
 	"github.com/dotcloud/docker/daemon"
+	"github.com/dotcloud/docker/engine"
 	"github.com/dotcloud/docker/nat"
 	"github.com/dotcloud/docker/pkg/symlink"
 	"github.com/dotcloud/docker/pkg/system"
@@ -42,9 +44,11 @@ type buildFile struct {
 	daemon *daemon.Daemon
 	srv    *Server
 
-	image      string
-	maintainer string
-	config     *runconfig.Config
+	image                  string
+	maintainer             string
+	config                 *runconfig.Config
+	hostConfig             *runconfig.HostConfig
+	buildVolumeContainerID string
 
 	contextPath string
 	context     *utils.TarSum
@@ -113,12 +117,38 @@ func (b *buildFile) CmdFrom(name string) error {
 	}
 	b.image = image.ID
 	b.config = &runconfig.Config{}
+	b.hostConfig = &runconfig.HostConfig{}
 	if image.Config != nil {
 		b.config = image.Config
 	}
 	if b.config.Env == nil || len(b.config.Env) == 0 {
 		b.config.Env = append(b.config.Env, "HOME=/", "PATH="+daemon.DefaultPathEnv)
 	}
+
+	// Setup build volume
+	if b.srv.Eng.Job("container_inspect", "dockerbuild").Run() != nil {
+		// no "dockerbuild" found, create a new tmp container
+		var (
+			job          = b.srv.Eng.Job("create")
+			volumes      = make(map[string]struct{})
+			stdoutBuffer = bytes.NewBuffer(nil)
+		)
+		volumes["/.dockerbuild"] = struct{}{}
+		job.Stdout.Add(stdoutBuffer)
+		job.Setenv("Image", image.ID)
+		job.Setenv("Cmd", "_")
+		job.SetenvJson("Volumes", &volumes)
+		if err := job.Run(); err != nil {
+			return err
+		}
+		b.buildVolumeContainerID = engine.Tail(stdoutBuffer, 1)
+		b.srv.Eng.Job("start", b.buildVolumeContainerID).Run()
+		b.hostConfig.VolumesFrom = []string{b.buildVolumeContainerID}
+	} else {
+		// "dockerbuild" container found, use it
+		b.hostConfig.VolumesFrom = []string{"dockerbuild"}
+	}
+
 	// Process ONBUILD triggers if they exist
 	if nTriggers := len(b.config.OnBuild); nTriggers != 0 {
 		fmt.Fprintf(b.errStream, "# Executing %d build triggers\n", nTriggers)
@@ -669,6 +699,7 @@ func (b *buildFile) create() (*daemon.Container, error) {
 	c.Path = b.config.Cmd[0]
 	c.Args = b.config.Cmd[1:]
 
+	c.SetHostConfig(b.hostConfig)
 	return c, nil
 }
 
@@ -760,6 +791,19 @@ func (b *buildFile) commit(id string, autoCmd []string, comment string) error {
 var lineContinuation = regexp.MustCompile(`\s*\\\s*\n`)
 
 func (b *buildFile) Build(context io.Reader) (string, error) {
+	defer func() {
+		if b.buildVolumeContainerID != "" {
+			job := b.srv.Eng.Job("container_delete", b.buildVolumeContainerID)
+			job.SetenvBool("removeVolume", true)
+			job.SetenvBool("forceRemove", true)
+			if err := job.Run(); err != nil {
+				fmt.Fprintf(b.outStream, "Error removing intermediate build volume container %s: %s\n", utils.TruncateID(b.buildVolumeContainerID), err.Error())
+			} else {
+				fmt.Fprintf(b.outStream, "Removing intermediate build volume container %s\n", utils.TruncateID(b.buildVolumeContainerID))
+			}
+		}
+	}()
+
 	tmpdirPath, err := ioutil.TempDir("", "docker-build")
 	if err != nil {
 		return "", err
