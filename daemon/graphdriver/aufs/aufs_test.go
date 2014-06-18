@@ -4,12 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"github.com/dotcloud/docker/archive"
-	"github.com/dotcloud/docker/daemon/graphdriver"
 	"io/ioutil"
 	"os"
 	"path"
 	"testing"
+
+	"github.com/dotcloud/docker/archive"
+	"github.com/dotcloud/docker/daemon/graphdriver"
 )
 
 var (
@@ -389,7 +390,7 @@ func TestChanges(t *testing.T) {
 	}
 
 	if change.Kind != archive.ChangeAdd {
-		t.Fatalf("Change kind should be ChangeAdd got %s", change.Kind)
+		t.Fatalf("Change kind should be ChangeAdd got %d", change.Kind)
 	}
 
 	if err := d.Create("3", "2"); err != nil {
@@ -429,7 +430,7 @@ func TestChanges(t *testing.T) {
 	}
 
 	if change.Kind != archive.ChangeAdd {
-		t.Fatalf("Change kind should be ChangeAdd got %s", change.Kind)
+		t.Fatalf("Change kind should be ChangeAdd got %d", change.Kind)
 	}
 }
 
