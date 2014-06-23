@@ -2341,7 +2341,7 @@ func (srv *Server) ContainerInsert(job *engine.Job) engine.Status {
 
 	var (
 		name     = job.Args[0]
-		resource = job.Args[2]
+		resource = job.Args[1]
 	)
 
 	if container := srv.daemon.Get(name); container != nil {
@@ -2359,7 +2359,7 @@ func (srv *Server) ContainerExtract(job *engine.Job) engine.Status {
 
 	var (
 		name     = job.Args[0]
-		resource = job.Args[2]
+		resource = job.Args[1]
 	)
 
 	if container := srv.daemon.Get(name); container != nil {
