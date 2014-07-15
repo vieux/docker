@@ -23,6 +23,9 @@ containers on a host use the **docker ps -a** command.
 **-s**, **--stop**=*true*|*false*
    Stop then remove a running container. The default is *false*.
 
+**--help**
+  Print usage statement
+
 **-k**, **--kill**=*true*|*false*
    Kill then remove a running container. The default is *false*.
 

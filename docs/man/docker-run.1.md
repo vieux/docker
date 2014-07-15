@@ -6,18 +6,16 @@ docker-run - Run a command in a new container
 
 # SYNOPSIS
 **docker run**
-[**-a**|**--attach**[=*[]*]]
-[**-c**|**--cpu-shares**[=*0*]]
-[**--cidfile**[=*CIDFILE*]]
-[**--cpuset**[=*CPUSET*]]
-[**-d**|**--detach**[=*false*]]
-[**--dns-search**[=*[]*]]
-[**--dns**[=*[]*]]
-[**-e**|**--env**[=*[]*]]
-[**--entrypoint**[=*ENTRYPOINT*]]
-[**--env-file**[=*[]*]]
-[**--expose**[=*[]*]]
-[**-h**|**--hostname**[=*HOSTNAME*]]
+[**-a**|**--attach**[=]] [**-c**|**--cpu-shares**[=0]
+[**-m**|**--memory**=*memory-limit*]
+[**--cidfile**=*file*] [**-d**|**--detach**[=*false*]] [**--dns**=*IP-address*]
+[**--help]
+[**--name**=*name*] [**-u**|**--user**=*username*|*uid*]
+[**--link**=*name*:*alias*]
+[**-e**|**--env**=*environment*] [**--entrypoint**=*command*]
+[**--expose**=*port*] [**-P**|**--publish-all**[=*false*]]
+[**-p**|**--publish**=*port-mapping*] [**-h**|**--hostname**=*hostname*]
+[**--rm**[=*false*]] [**--privileged**[=*false*]]
 [**-i**|**--interactive**[=*false*]]
 [**--link**[=*[]*]]
 [**--lxc-conf**[=*[]*]]
@@ -120,6 +118,31 @@ developer can expose the port using the EXPOSE parameter of the Dockerfile, 2)
 the operator can use the **--expose** option with **docker run**, or 3) the
 container can be started with the **--link**.
 
+**--help**
+  Print usage statement
+
+**-m**, **-memory**=*memory-limit*
+   Allows you to constrain the memory available to a container. If the host
+supports swap memory, then the -m memory setting can be larger than physical
+RAM. If a limit of 0 is specified, the container's memory is not limited. The
+actual limit may be rounded up to a multiple of the operating system's page
+size, if it is not already. The memory limit should be formatted as follows:
+`<number><optional unit>`, where unit = b, k, m or g.
+
+**-P**, **-publish-all**=*true*|*false*
+   When set to true, publish all exposed ports to the host interfaces. The
+default is false. If the operator uses -P (or -p) then Docker will make the
+exposed port accessible on the host and the ports will be available to any
+client that can reach the host. To find the map between the host ports and the
+exposed ports, use **docker port**.
+
+
+**-p**, **-publish**=[]
+   Publish a container's port to the host (format: ip:hostPort:containerPort |
+ip::containerPort | hostPort:containerPort) (use **docker port** to see the
+actual mapping)
+
+
 **-h**, **-hostname**=*hostname*
    Sets the container host name that is available inside the container.
 
@@ -166,7 +189,7 @@ and foreground Docker containers.
                                'host': use the host network stack inside the container.  Note: the host mode gives the container full access to local system services such as D-bus and is therefore considered insecure.
 
 **-P**, **-publish-all**=*true*|*false*
-   When set to true publish all exposed ports to the host interfaces. The
+   When set to true, publish all exposed ports to the host interfaces. The
 default is false. If the operator uses -P (or -p) then Docker will make the
 exposed port accessible on the host and the ports will be available to any
 client that can reach the host. To find the map between the host ports and the
@@ -200,7 +223,7 @@ non-tty mode). SIGCHLD, SIGKILL, and SIGSTOP are not proxied. The default is *tr
 
 
 **-t**, **-tty**=*true*|*false*
-   When set to true Docker can allocate a pseudo-tty and attach to the standard
+   When set to true, Docker can allocate a pseudo-tty and attach to the standard
 input of any container. This can be used, for example, to run a throwaway
 interactive shell. The default is value is false.
 
