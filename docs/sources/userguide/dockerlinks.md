@@ -237,6 +237,16 @@ an application to make use of our `db` container.
 > example, we could have multiple web containers attached to our `db`
 > container.
 
+If you restart the parent container, the linked child containers `/etc/hosts`
+files will be automatically updated with the parent container's new IP addres,
+allowing linked communication to continue.
+
+    $ sudo docker restart db
+    root@aed84ee21bde:/opt/webapp# cat /etc/hosts
+    172.17.0.7  aed84ee21bde
+    . . .
+    172.17.0.9  db
+
 # Next step
 
 Now we know how to link Docker containers together the next step is
