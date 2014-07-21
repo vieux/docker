@@ -343,7 +343,7 @@ func sortFlags(flags map[string]*Flag) []*Flag {
 	return result
 }
 
-func (f *FlagSet) out() io.Writer {
+func (f *FlagSet) Out() io.Writer {
 	if f.output == nil {
 		return os.Stderr
 	}
@@ -354,12 +354,6 @@ func (f *FlagSet) out() io.Writer {
 // If output is nil, os.Stderr is used.
 func (f *FlagSet) SetOutput(output io.Writer) {
 	f.output = output
-}
-
-// Returns the destination for usage and error messages.
-// If output is nil, os.Stderr is used.
-func (f *FlagSet) GetOutput() io.Writer {
-	return f.out()
 }
 
 // VisitAll visits the flags in lexicographical order, calling fn for each.
@@ -426,7 +420,7 @@ func Set(name, value string) error {
 // PrintDefaults prints, to standard error unless configured
 // otherwise, the default values of all defined flags in the set.
 func (f *FlagSet) PrintDefaults() {
-	writer := tabwriter.NewWriter(f.out(), 20, 1, 3, ' ', 0)
+	writer := tabwriter.NewWriter(f.Out(), 20, 1, 3, ' ', 0)
 	f.VisitAll(func(flag *Flag) {
 		format := "  -%s=%s"
 		if _, ok := flag.Value.(*stringValue); ok {
@@ -460,9 +454,9 @@ func PrintDefaults() {
 // defaultUsage is the default function to print a usage message.
 func defaultUsage(f *FlagSet) {
 	if f.name == "" {
-		fmt.Fprintf(f.out(), "Usage:\n")
+		fmt.Fprintf(f.Out(), "Usage:\n")
 	} else {
-		fmt.Fprintf(f.out(), "Usage of %s:\n", f.name)
+		fmt.Fprintf(f.Out(), "Usage of %s:\n", f.name)
 	}
 	f.PrintDefaults()
 }
@@ -738,7 +732,7 @@ func (f *FlagSet) Var(value Value, names []string, usage string) {
 			} else {
 				msg = fmt.Sprintf("%s flag redefined: %s", f.name, name)
 			}
-			fmt.Fprintln(f.out(), msg)
+			fmt.Fprintln(f.Out(), msg)
 			panic(msg) // Happens only if flags are declared with identical names
 		}
 		if f.formal == nil {
@@ -762,7 +756,7 @@ func Var(value Value, names []string, usage string) {
 // returns the error.
 func (f *FlagSet) failf(format string, a ...interface{}) error {
 	err := fmt.Errorf(format, a...)
-	fmt.Fprintln(f.out(), err)
+	fmt.Fprintln(f.Out(), err)
 	f.usage()
 	return err
 }
@@ -889,9 +883,9 @@ func (f *FlagSet) parseOne() (bool, string, error) {
 				}
 			}
 			if replacement != "" {
-				fmt.Fprintf(f.out(), "Warning: '-%s' is deprecated, it will be replaced by '-%s' soon. See usage.\n", name, replacement)
+				fmt.Fprintf(f.Out(), "Warning: '-%s' is deprecated, it will be replaced by '-%s' soon. See usage.\n", name, replacement)
 			} else {
-				fmt.Fprintf(f.out(), "Warning: '-%s' is deprecated, it will be removed soon. See usage.\n", name)
+				fmt.Fprintf(f.Out(), "Warning: '-%s' is deprecated, it will be removed soon. See usage.\n", name)
 			}
 		}
 	}

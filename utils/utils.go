@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/dotcloud/docker/dockerversion"
+	flag "github.com/dotcloud/docker/pkg/mflag"
 )
 
 type KeyValuePair struct {
@@ -915,4 +916,17 @@ func StringsContainsNoCase(slice []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func ParseWithHelp(cmd *flag.FlagSet, output io.Writer, args ...string) error {
+	help := cmd.Bool([]string{"-help"}, false, "Print usage")
+	if err := cmd.Parse(args); err != nil {
+		return err
+	}
+	if *help {
+		cmd.SetOutput(output)
+		cmd.Usage()
+		return flag.ErrHelp
+	}
+	return nil
 }

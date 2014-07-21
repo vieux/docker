@@ -44,7 +44,10 @@ func (cli *DockerCli) ParseCommands(args ...string) error {
 		if args[0] == "help" {
 			cli.err = cli.out
 		}
-		return method(args[1:]...)
+		if err := method(args[1:]...); err != nil && err != flag.ErrHelp {
+			return err
+		}
+		return nil
 	}
 	return cli.CmdHelp(args...)
 }
@@ -52,7 +55,7 @@ func (cli *DockerCli) ParseCommands(args ...string) error {
 func (cli *DockerCli) Subcmd(name, signature, description string) *flag.FlagSet {
 	flags := flag.NewFlagSet(name, flag.ContinueOnError)
 	flags.Usage = func() {
-		fmt.Fprintf(flags.GetOutput(), "\nUsage: docker %s %s\n\n%s\n\n", name, signature, description)
+		fmt.Fprintf(flags.Out(), "\nUsage: docker %s %s\n\n%s\n\n", name, signature, description)
 		flags.PrintDefaults()
 		os.Exit(2)
 	}
