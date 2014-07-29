@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,6 +56,10 @@ func init() {
 		}
 
 		if err := namespaces.Init(container, rootfs, args.Console, syncPipe, args.Args); err != nil {
+			if err == exec.ErrNotFound {
+				log.Printf("Unable to locate %v", args.Args[0])
+				os.Exit(127)
+			}
 			return err
 		}
 
