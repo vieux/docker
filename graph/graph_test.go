@@ -1,19 +1,17 @@
-package docker
+package graph
 
 import (
 	"errors"
-	"github.com/docker/docker/archive"
-	"github.com/docker/docker/daemon/graphdriver"
-	"github.com/docker/docker/dockerversion"
-	"github.com/docker/docker/graph"
-	"github.com/docker/docker/image"
-	"github.com/docker/docker/utils"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"testing"
 	"time"
+	"github.com/docker/docker/daemon/graphdriver"
+	"github.com/docker/docker/dockerversion"
+	"github.com/docker/docker/image"
+	"github.com/docker/docker/utils"
 )
 
 func TestMount(t *testing.T) {
@@ -165,7 +163,7 @@ func TestDeletePrefix(t *testing.T) {
 	assertNImages(graph, t, 0)
 }
 
-func createTestImage(graph *graph.Graph, t *testing.T) *image.Image {
+func createTestImage(graph *Graph, t *testing.T) *image.Image {
 	archive, err := fakeTar()
 	if err != nil {
 		t.Fatal(err)
@@ -280,7 +278,7 @@ func TestByParent(t *testing.T) {
  * HELPER FUNCTIONS
  */
 
-func assertNImages(graph *graph.Graph, t *testing.T, n int) {
+func assertNImages(graph *Graph, t *testing.T, n int) {
 	if images, err := graph.Map(); err != nil {
 		t.Fatal(err)
 	} else if actualN := len(images); actualN != n {
@@ -288,7 +286,7 @@ func assertNImages(graph *graph.Graph, t *testing.T, n int) {
 	}
 }
 
-func tempGraph(t *testing.T) (*graph.Graph, graphdriver.Driver) {
+func tempGraph(t *testing.T) (*Graph, graphdriver.Driver) {
 	tmp, err := ioutil.TempDir("", "docker-graph-")
 	if err != nil {
 		t.Fatal(err)
@@ -297,22 +295,14 @@ func tempGraph(t *testing.T) (*graph.Graph, graphdriver.Driver) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	graph, err := graph.NewGraph(tmp, driver)
+	graph, err := NewGraph(tmp, driver)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return graph, driver
 }
 
-func nukeGraph(graph *graph.Graph) {
+func nukeGraph(graph *Graph) {
 	graph.Driver().Cleanup()
 	os.RemoveAll(graph.Root)
-}
-
-func testArchive(t *testing.T) archive.Archive {
-	archive, err := fakeTar()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return archive
 }
