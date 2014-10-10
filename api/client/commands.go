@@ -2253,7 +2253,7 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 		}
 
 		errCh = promise.Go(func() error {
-			return cli.hijack("POST", "/containers/"+runResult.Get("Id")+"/attach?"+v.Encode(), config.Tty, in, out, stderr, hijacked, nil)
+			return cli.ws("/containers/"+runResult.Get("Id")+"/attach/ws?"+v.Encode(), config.Tty, in, out, stderr, hijacked)
 		})
 	} else {
 		close(hijacked)
