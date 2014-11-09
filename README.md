@@ -187,6 +187,14 @@ documentation, please take a look at this [README.md](https://github.com/docker/
 These instructions are probably not perfect, please let us know if anything
 feels wrong or incomplete.
 
+How the project is run
+======================
+
+Docker is a very, very active project. If you want to learn more about how it is run,
+or want to get more involved, the best place to start is [the project directory](https://github.com/docker/docker/tree/project).
+
+We are always open to suggestions on process improvements, and are always looking for more maintainers.
+
 ### Legal
 
 *Brought to you courtesy of our legal counsel. For more context,
