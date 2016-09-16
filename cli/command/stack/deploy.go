@@ -168,7 +168,7 @@ func deployServices(
 				Labels: getStackLabels(namespace, service.Labels),
 			},
 			TaskTemplate: swarm.TaskSpec{
-				ContainerSpec: swarm.ContainerSpec{
+				ContainerSpec: &swarm.ContainerSpec{
 					Image:   service.Image,
 					Command: service.Command,
 					Args:    service.Args,
@@ -185,7 +185,7 @@ func deployServices(
 			Networks: convertNetworks(service.Networks, namespace, internalName),
 		}
 
-		cspec := &serviceSpec.TaskTemplate.ContainerSpec
+		cspec := serviceSpec.TaskTemplate.ContainerSpec
 		if service.WorkingDir != nil {
 			cspec.Dir = *service.WorkingDir
 		}

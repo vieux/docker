@@ -13,7 +13,9 @@ func TaskFromGRPC(t swarmapi.Task) types.Task {
 	if t.Spec.GetAttachment() != nil {
 		return types.Task{}
 	}
-	containerConfig := t.Spec.Runtime.(*swarmapi.TaskSpec_Container).Container
+	containerConfig := t.Spec.GetContainer()
+	pluginConfig := t.Spec.GetPlugin()
+
 	containerStatus := t.Status.GetContainer()
 	networks := make([]types.NetworkAttachmentConfig, 0, len(t.Spec.Networks))
 	for _, n := range t.Spec.Networks {
@@ -26,7 +28,6 @@ func TaskFromGRPC(t swarmapi.Task) types.Task {
 		Slot:      int(t.Slot),
 		NodeID:    t.NodeID,
 		Spec: types.TaskSpec{
-			ContainerSpec: containerSpecFromGRPC(containerConfig),
 			Resources:     resourcesFromGRPC(t.Spec.Resources),
 			RestartPolicy: restartPolicyFromGRPC(t.Spec.Restart),
 			Placement:     placementFromGRPC(t.Spec.Placement),
@@ -39,6 +40,12 @@ func TaskFromGRPC(t swarmapi.Task) types.Task {
 			Err:     t.Status.Err,
 		},
 		DesiredState: types.TaskState(strings.ToLower(t.DesiredState.String())),
+	}
+
+	if pluginConfig != nil {
+		task.Spec.PluginSpec = pluginSpecFromGRPC(pluginConfig)
+	} else {
+		task.Spec.ContainerSpec = containerSpecFromGRPC(containerConfig)
 	}
 
 	// Meta

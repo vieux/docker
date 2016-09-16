@@ -62,6 +62,7 @@
 		GlobalService
 		TaskSpec
 		NetworkAttachmentSpec
+		PluginSpec
 		ContainerSpec
 		EndpointSpec
 		NetworkSpec

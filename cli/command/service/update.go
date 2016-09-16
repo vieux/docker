@@ -137,7 +137,7 @@ func updateService(flags *pflag.FlagSet, spec *swarm.ServiceSpec) error {
 		}
 	}
 
-	cspec := &spec.TaskTemplate.ContainerSpec
+	cspec := spec.TaskTemplate.ContainerSpec
 	task := &spec.TaskTemplate
 
 	taskResources := func() *swarm.ResourceRequirements {

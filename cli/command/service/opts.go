@@ -408,6 +408,8 @@ type serviceOptions struct {
 	replicas Uint64Opt
 	mode     string
 
+	runtime string
+
 	restartPolicy restartPolicyOptions
 	constraints   []string
 	update        updateOptions
@@ -440,17 +442,6 @@ func (opts *serviceOptions) ToService() (swarm.ServiceSpec, error) {
 			Labels: runconfigopts.ConvertKVStringsToMap(opts.labels.GetAll()),
 		},
 		TaskTemplate: swarm.TaskSpec{
-			ContainerSpec: swarm.ContainerSpec{
-				Image:           opts.image,
-				Args:            opts.args,
-				Env:             opts.env.GetAll(),
-				Labels:          runconfigopts.ConvertKVStringsToMap(opts.containerLabels.GetAll()),
-				Dir:             opts.workdir,
-				User:            opts.user,
-				Groups:          opts.groups,
-				Mounts:          opts.mounts.Value(),
-				StopGracePeriod: opts.stopGrace.Value(),
-			},
 			Networks:      convertNetworks(opts.networks),
 			Resources:     opts.resources.ToResourceRequirements(),
 			RestartPolicy: opts.restartPolicy.ToRestartPolicy(),
@@ -467,6 +458,26 @@ func (opts *serviceOptions) ToService() (swarm.ServiceSpec, error) {
 			FailureAction: opts.update.onFailure,
 		},
 		EndpointSpec: opts.endpoint.ToEndpointSpec(),
+	}
+
+	switch opts.runtime {
+	case "container":
+		service.TaskTemplate.ContainerSpec = &swarm.ContainerSpec{
+			Image:           opts.image,
+			Args:            opts.args,
+			Env:             opts.env.GetAll(),
+			Labels:          runconfigopts.ConvertKVStringsToMap(opts.containerLabels.GetAll()),
+			Dir:             opts.workdir,
+			User:            opts.user,
+			Groups:          opts.groups,
+			Mounts:          opts.mounts.Value(),
+			StopGracePeriod: opts.stopGrace.Value(),
+		}
+	case "plugin":
+		service.TaskTemplate.PluginSpec = &swarm.PluginSpec{
+			Image:   opts.image,
+			Enabled: true, //TODO(vieux): fixme
+		}
 	}
 
 	switch opts.mode {
@@ -555,6 +566,7 @@ const (
 	flagRestartDelay         = "restart-delay"
 	flagRestartMaxAttempts   = "restart-max-attempts"
 	flagRestartWindow        = "restart-window"
+	flagRuntime              = "runtime"
 	flagStopGracePeriod      = "stop-grace-period"
 	flagUpdateDelay          = "update-delay"
 	flagUpdateFailureAction  = "update-failure-action"

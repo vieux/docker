@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	listItemFmt = "%s\t%s\t%s\t%s\t%s\n"
+	listItemFmt = "%s\t%s\t%s\t%s\t%s\t%s\n"
 )
 
 type listOptions struct {
@@ -105,7 +105,7 @@ func printTable(out io.Writer, services []swarm.Service, running map[string]int)
 	// Ignore flushing errors
 	defer writer.Flush()
 
-	fmt.Fprintf(writer, listItemFmt, "ID", "NAME", "REPLICAS", "IMAGE", "COMMAND")
+	fmt.Fprintf(writer, listItemFmt, "ID", "NAME", "RUNTIME", "REPLICAS", "IMAGE", "COMMAND")
 	for _, service := range services {
 		replicas := ""
 		if service.Spec.Mode.Replicated != nil && service.Spec.Mode.Replicated.Replicas != nil {
@@ -113,14 +113,28 @@ func printTable(out io.Writer, services []swarm.Service, running map[string]int)
 		} else if service.Spec.Mode.Global != nil {
 			replicas = "global"
 		}
-		fmt.Fprintf(
-			writer,
-			listItemFmt,
-			stringid.TruncateID(service.ID),
-			service.Spec.Name,
-			replicas,
-			service.Spec.TaskTemplate.ContainerSpec.Image,
-			strings.Join(service.Spec.TaskTemplate.ContainerSpec.Args, " "))
+
+		if service.Spec.TaskTemplate.PluginSpec != nil {
+			fmt.Fprintf(
+				writer,
+				listItemFmt,
+				stringid.TruncateID(service.ID),
+				service.Spec.Name,
+				"plugin",
+				replicas,
+				service.Spec.TaskTemplate.PluginSpec.Image,
+				"")
+		} else {
+			fmt.Fprintf(
+				writer,
+				listItemFmt,
+				stringid.TruncateID(service.ID),
+				service.Spec.Name,
+				"container",
+				replicas,
+				service.Spec.TaskTemplate.ContainerSpec.Image,
+				strings.Join(service.Spec.TaskTemplate.ContainerSpec.Args, " "))
+		}
 	}
 }
 

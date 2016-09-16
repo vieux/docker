@@ -82,12 +82,19 @@ func Print(dockerCli *command.DockerCli, ctx context.Context, tasks []swarm.Task
 			taskErr = fmt.Sprintf("\"%s\"", taskErr)
 		}
 
+		var image string
+		if pSpec := task.Spec.PluginSpec; pSpec != nil {
+			image = pSpec.Image
+		} else {
+			image = task.Spec.ContainerSpec.Image
+		}
+
 		fmt.Fprintf(
 			writer,
 			psTaskItemFmt,
 			task.ID,
 			indentedName,
-			task.Spec.ContainerSpec.Image,
+			image,
 			nodeValue,
 			command.PrettyPrint(task.DesiredState),
 			command.PrettyPrint(task.Status.State),

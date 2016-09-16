@@ -166,7 +166,7 @@ func printService(out io.Writer, service swarm.Service) {
 	}
 }
 
-func printContainerSpec(out io.Writer, containerSpec swarm.ContainerSpec) {
+func printContainerSpec(out io.Writer, containerSpec *swarm.ContainerSpec) {
 	fmt.Fprintf(out, " Image:\t\t%s\n", containerSpec.Image)
 	if len(containerSpec.Args) > 0 {
 		fmt.Fprintf(out, " Args:\t\t%s\n", strings.Join(containerSpec.Args, " "))

@@ -125,6 +125,10 @@ func (e *executor) Controller(t *api.Task) (exec.Controller, error) {
 		return newNetworkAttacherController(e.backend, t)
 	}
 
+	if t.Spec.GetPlugin() != nil {
+		return newPluginController(t)
+	}
+
 	ctlr, err := newController(e.backend, t)
 	if err != nil {
 		return nil, err

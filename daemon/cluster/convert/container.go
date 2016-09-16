@@ -10,8 +10,12 @@ import (
 	"github.com/docker/swarmkit/protobuf/ptypes"
 )
 
-func containerSpecFromGRPC(c *swarmapi.ContainerSpec) types.ContainerSpec {
-	containerSpec := types.ContainerSpec{
+func containerSpecFromGRPC(c *swarmapi.ContainerSpec) *types.ContainerSpec {
+	if c == nil {
+		return nil
+	}
+
+	containerSpec := &types.ContainerSpec{
 		Image:   c.Image,
 		Labels:  c.Labels,
 		Command: c.Command,
@@ -59,7 +63,11 @@ func containerSpecFromGRPC(c *swarmapi.ContainerSpec) types.ContainerSpec {
 	return containerSpec
 }
 
-func containerToGRPC(c types.ContainerSpec) (*swarmapi.ContainerSpec, error) {
+func containerToGRPC(c *types.ContainerSpec) (*swarmapi.ContainerSpec, error) {
+	if c == nil {
+		return nil, nil
+	}
+
 	containerSpec := &swarmapi.ContainerSpec{
 		Image:   c.Image,
 		Labels:  c.Labels,

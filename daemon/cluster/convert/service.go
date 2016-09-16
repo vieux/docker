@@ -13,7 +13,8 @@ import (
 // ServiceFromGRPC converts a grpc Service to a Service.
 func ServiceFromGRPC(s swarmapi.Service) types.Service {
 	spec := s.Spec
-	containerConfig := spec.Task.Runtime.(*swarmapi.TaskSpec_Container).Container
+	containerConfig := spec.Task.GetContainer()
+	pluginConfig := spec.Task.GetPlugin()
 
 	serviceNetworks := make([]types.NetworkAttachmentConfig, 0, len(spec.Networks))
 	for _, n := range spec.Networks {
@@ -30,7 +31,6 @@ func ServiceFromGRPC(s swarmapi.Service) types.Service {
 
 		Spec: types.ServiceSpec{
 			TaskTemplate: types.TaskSpec{
-				ContainerSpec: containerSpecFromGRPC(containerConfig),
 				Resources:     resourcesFromGRPC(s.Spec.Task.Resources),
 				RestartPolicy: restartPolicyFromGRPC(s.Spec.Task.Restart),
 				Placement:     placementFromGRPC(s.Spec.Task.Placement),
@@ -52,6 +52,12 @@ func ServiceFromGRPC(s swarmapi.Service) types.Service {
 	// Annotations
 	service.Spec.Name = s.Spec.Annotations.Name
 	service.Spec.Labels = s.Spec.Annotations.Labels
+
+	if pluginConfig != nil {
+		service.Spec.TaskTemplate.PluginSpec = pluginSpecFromGRPC(pluginConfig)
+	} else {
+		service.Spec.TaskTemplate.ContainerSpec = containerSpecFromGRPC(containerConfig)
+	}
 
 	// UpdateConfig
 	if s.Spec.Update != nil {
@@ -129,11 +135,19 @@ func ServiceSpecToGRPC(s types.ServiceSpec) (swarmapi.ServiceSpec, error) {
 		Networks: serviceNetworks,
 	}
 
-	containerSpec, err := containerToGRPC(s.TaskTemplate.ContainerSpec)
-	if err != nil {
-		return swarmapi.ServiceSpec{}, err
+	if s.TaskTemplate.PluginSpec != nil {
+		pluginSpec, err := pluginToGRPC(s.TaskTemplate.PluginSpec)
+		if err != nil {
+			return swarmapi.ServiceSpec{}, err
+		}
+		spec.Task.Runtime = &swarmapi.TaskSpec_Plugin{Plugin: pluginSpec}
+	} else {
+		containerSpec, err := containerToGRPC(s.TaskTemplate.ContainerSpec)
+		if err != nil {
+			return swarmapi.ServiceSpec{}, err
+		}
+		spec.Task.Runtime = &swarmapi.TaskSpec_Container{Container: containerSpec}
 	}
-	spec.Task.Runtime = &swarmapi.TaskSpec_Container{Container: containerSpec}
 
 	restartPolicy, err := restartPolicyToGRPC(s.TaskTemplate.RestartPolicy)
 	if err != nil {

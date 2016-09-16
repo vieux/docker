@@ -119,22 +119,33 @@ func validateTask(taskSpec api.TaskSpec) error {
 		return grpc.Errorf(codes.InvalidArgument, "TaskSpec: missing runtime")
 	}
 
-	_, ok := taskSpec.GetRuntime().(*api.TaskSpec_Container)
-	if !ok {
+	if taskSpec.GetRuntime() == nil {
 		return grpc.Errorf(codes.Unimplemented, "RuntimeSpec: unimplemented runtime in service spec")
 	}
 
 	container := taskSpec.GetContainer()
-	if container == nil {
-		return grpc.Errorf(codes.InvalidArgument, "ContainerSpec: missing in service spec")
-	}
+	plugin := taskSpec.GetPlugin()
+	if plugin != nil {
+		if plugin.Image == "" {
+			return grpc.Errorf(codes.InvalidArgument, "PluginSpec: image reference must be provided")
+		}
 
-	if container.Image == "" {
-		return grpc.Errorf(codes.InvalidArgument, "ContainerSpec: image reference must be provided")
-	}
+		if _, _, err := reference.Parse(plugin.Image); err != nil {
+		}
+	} else if container != nil {
+		if container.Image == "" {
+			return grpc.Errorf(codes.InvalidArgument, "ContainerSpec: image reference must be provided")
+		}
 
-	if _, _, err := reference.Parse(container.Image); err != nil {
-		return grpc.Errorf(codes.InvalidArgument, "ContainerSpec: %q is not a valid repository/tag", container.Image)
+		if _, _, err := reference.Parse(container.Image); err != nil {
+			return grpc.Errorf(codes.InvalidArgument, "ContainerSpec: %q is not a valid repository/tag", container.Image)
+		}
+
+		if container.Image == "" {
+			return grpc.Errorf(codes.InvalidArgument, "ContainerSpec: image reference must be provided")
+		}
+	} else {
+		return grpc.Errorf(codes.InvalidArgument, "ContainerSpec/PluginSpec: missing in service spec")
 	}
 	return nil
 }

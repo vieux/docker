@@ -51,7 +51,8 @@ type Task struct {
 
 // TaskSpec represents the spec of a task.
 type TaskSpec struct {
-	ContainerSpec ContainerSpec             `json:",omitempty"`
+	ContainerSpec *ContainerSpec            `json:",omitempty"`
+	PluginSpec    *PluginSpec               `json:",omitempty"`
 	Resources     *ResourceRequirements     `json:",omitempty"`
 	RestartPolicy *RestartPolicy            `json:",omitempty"`
 	Placement     *Placement                `json:",omitempty"`
