@@ -146,7 +146,7 @@ This section lists each version from latest to oldest.  Each listing includes a 
 * `POST /containers/prune` prunes stopped containers.
 * `POST /images/prune` prunes unused images.
 * `POST /volumes/prune` prunes unused volumes.
-
+* Every API request answer will now include a `Docker-Experimental` specifying if experimental feature are enabled (value can be `true` or `false`).
 
 ### v1.24 API changes
 
