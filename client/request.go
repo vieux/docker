@@ -89,7 +89,7 @@ func (cli *Client) sendClientRequest(ctx context.Context, method, path string, q
 		body = bytes.NewReader([]byte{})
 	}
 
-	req, err := cli.newRequest(method, path, query, body, headers)
+	req, err := cli.newRequest(ctx, method, path, query, body, headers)
 	if err != nil {
 		return serverResp, err
 	}
@@ -179,8 +179,9 @@ func (cli *Client) sendClientRequest(ctx context.Context, method, path string, q
 	return serverResp, nil
 }
 
-func (cli *Client) newRequest(method, path string, query url.Values, body io.Reader, headers map[string][]string) (*http.Request, error) {
-	apiPath := cli.getAPIPath(path, query)
+func (cli *Client) newRequest(ctx context.Context, method, path string, query url.Values, body io.Reader, headers map[string][]string) (*http.Request, error) {
+
+	apiPath := cli.getAPIPath(ctx, path, query)
 	req, err := http.NewRequest(method, apiPath, body)
 	if err != nil {
 		return nil, err

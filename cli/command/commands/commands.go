@@ -72,6 +72,8 @@ func AddCommands(cmd *cobra.Command, dockerCli *command.DockerCli) {
 		hide(system.NewInspectCommand(dockerCli)),
 	)
 
+	dockerCli.UpdateClientVersion(dockerCli.ServerVersion())
+
 	if dockerCli.HasExperimental() {
 		cmd.AddCommand(
 			stack.NewStackCommand(dockerCli),

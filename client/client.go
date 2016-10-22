@@ -46,6 +46,7 @@ For example, to list running containers (the equivalent of "docker ps"):
 package client
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -170,9 +171,10 @@ func NewClient(host string, version string, client *http.Client, httpHeaders map
 
 // getAPIPath returns the versioned request path to call the api.
 // It appends the query parameters to the path if they are not empty.
-func (cli *Client) getAPIPath(p string, query url.Values) string {
+func (cli *Client) getAPIPath(ctx context.Context, p string, query url.Values) string {
+	ignoreVersion := ctx.Value("ignore-version")
 	var apiPath string
-	if cli.version != "" {
+	if cli.version != "" && (ignoreVersion == nil || ignoreVersion.(bool) == false) {
 		v := strings.TrimPrefix(cli.version, "v")
 		apiPath = fmt.Sprintf("%s/v%s%s", cli.basePath, v, p)
 	} else {

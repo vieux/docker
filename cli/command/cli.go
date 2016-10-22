@@ -39,6 +39,7 @@ type DockerCli struct {
 	keyFile         string
 	client          client.APIClient
 	hasExperimental *bool
+	serverVersion   *string
 }
 
 // HasExperimental returns true if experimental features are accessible
@@ -49,10 +50,30 @@ func (cli *DockerCli) HasExperimental() bool {
 		}
 		enabled := false
 		cli.hasExperimental = &enabled
-		enabled, _ = cli.client.Ping(context.Background())
+		enabled, _, _ = cli.client.Ping(context.Background())
 	}
 
 	return *cli.hasExperimental
+}
+
+// ServerVersion returns the version supported by the server
+func (cli *DockerCli) ServerVersion() string {
+	if cli.serverVersion == nil {
+		if cli.client == nil {
+			cli.Initialize(cliflags.NewClientOptions())
+		}
+
+		serverVersion := api.DefaultVersion
+		cli.serverVersion = &serverVersion
+		_, serverVersion, _ = cli.client.Ping(context.Background())
+	}
+
+	return *cli.serverVersion
+}
+
+// UpdateClientVersion updates the version string for the client
+func (cli *DockerCli) UpdateClientVersion(v string) {
+	cli.client.UpdateClientVersion(v)
 }
 
 // Client returns the APIClient
