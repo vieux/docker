@@ -105,6 +105,14 @@ type Daemon struct {
 	clusterProvider           cluster.Provider
 }
 
+// HasExperimental returns whether the experimental features of the daemon are enabled or not
+func (daemon *Daemon) HasExperimental() bool {
+	if daemon.configStore != nil && daemon.configStore.Experimental {
+		return true
+	}
+	return false
+}
+
 func (daemon *Daemon) restore() error {
 	var (
 		debug         = utils.IsDebugEnabled()
@@ -680,7 +688,7 @@ func NewDaemon(config *Config, registryService registry.Service, containerdRemot
 	}
 
 	// Plugin system initialization should happen before restore. Do not change order.
-	if err := pluginInit(d, config, containerdRemote); err != nil {
+	if err := d.pluginInit(config, containerdRemote); err != nil {
 		return nil, err
 	}
 
@@ -788,7 +796,7 @@ func (daemon *Daemon) Shutdown() error {
 	}
 
 	// Shutdown plugins after containers. Dont change the order.
-	pluginShutdown()
+	daemon.pluginShutdown()
 
 	// trigger libnetwork Stop only if it's initialized
 	if daemon.netController != nil {
@@ -1035,7 +1043,6 @@ func (daemon *Daemon) Reload(config *Config) (err error) {
 		if err := daemon.containerdRemote.UpdateOptions(libcontainerd.WithLiveRestore(config.LiveRestoreEnabled)); err != nil {
 			return err
 		}
-
 	}
 
 	// If no value is set for max-concurrent-downloads we assume it is the default value
