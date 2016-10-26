@@ -40,7 +40,10 @@ func newDockerCommand(dockerCli *command.DockerCli) *cobra.Command {
 			// flags must be the top-level command flags, not cmd.Flags()
 			opts.Common.SetDefaultOptions(flags)
 			dockerPreRun(opts)
-			return dockerCli.Initialize(opts)
+			if dockerCli.Client() == nil {
+				return dockerCli.Initialize(opts)
+			}
+			return nil
 		},
 	}
 	cli.SetupRootCommand(cmd)
