@@ -45,6 +45,9 @@ func (cli *Client) PluginInstall(ctx context.Context, name string, options types
 			return pluginPermissionDenied{name}
 		}
 	}
+
+	cli.PluginSet(ctx, name, options.Args)
+
 	if options.Disabled {
 		return nil
 	}

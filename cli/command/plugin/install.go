@@ -2,12 +2,14 @@ package plugin
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"strings"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/cli"
 	"github.com/docker/docker/cli/command"
+	"github.com/docker/docker/opts"
 	"github.com/docker/docker/reference"
 	"github.com/docker/docker/registry"
 	"github.com/spf13/cobra"
@@ -18,6 +20,7 @@ type pluginOptions struct {
 	name       string
 	grantPerms bool
 	disable    bool
+	args       opts.ListOpts
 }
 
 func newInstallCommand(dockerCli *command.DockerCli) *cobra.Command {
@@ -35,6 +38,7 @@ func newInstallCommand(dockerCli *command.DockerCli) *cobra.Command {
 	flags := cmd.Flags()
 	flags.BoolVar(&options.grantPerms, "grant-all-permissions", false, "Grant all permissions necessary to run the plugin")
 	flags.BoolVar(&options.disable, "disable", false, "Do not enable the plugin on install")
+	flag.Var(&options.args, "args", "Arguments to pass to the plugin")
 
 	return cmd
 }
@@ -75,6 +79,7 @@ func runInstall(dockerCli *command.DockerCli, opts pluginOptions) error {
 		AcceptPermissionsFunc: acceptPrivileges(dockerCli, opts.name),
 		// TODO: Rename PrivilegeFunc, it has nothing to do with privileges
 		PrivilegeFunc: registryAuthFunc,
+		Args:          opts.args.GetAll(),
 	}
 	if err := dockerCli.Client().PluginInstall(ctx, ref.String(), options); err != nil {
 		return err
