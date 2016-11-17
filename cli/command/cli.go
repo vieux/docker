@@ -20,6 +20,7 @@ import (
 	dopts "github.com/docker/docker/opts"
 	"github.com/docker/go-connections/sockets"
 	"github.com/docker/go-connections/tlsconfig"
+	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 )
 
@@ -71,6 +72,22 @@ func (cli *DockerCli) Err() io.Writer {
 // In returns the reader used for stdin
 func (cli *DockerCli) In() *InStream {
 	return cli.in
+}
+
+func (cli *DockerCli) IsSupported(f cobra.PositionalArgs) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if !cli.hasExperimental {
+			if _, ok := cmd.Tags["experimental"]; ok {
+				return errors.New("only supported with experimental daemon")
+			}
+		}
+
+		if cmdVersion, ok := cmd.Tags["version"]; ok && versions.LessThan(cli.Client().ClientVersion(), cmdVersion) {
+			return fmt.Errorf("only supported with daemon version >= %s", cmdVersion)
+		}
+
+		return f(cmd, args)
+	}
 }
 
 // ConfigFile returns the ConfigFile

@@ -34,7 +34,7 @@ func newLogsCommand(dockerCli *command.DockerCli) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "logs [OPTIONS] SERVICE",
 		Short: "Fetch the logs of a service",
-		Args:  cli.ExactArgs(1),
+		Args:  dockerCli.IsSupported(cli.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.service = args[0]
 			return runLogs(dockerCli, &opts)
