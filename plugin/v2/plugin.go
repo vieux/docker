@@ -21,7 +21,6 @@ type Plugin struct {
 	PluginObj         types.Plugin    `json:"plugin"`
 	PClient           *plugins.Client `json:"-"`
 	RuntimeSourcePath string          `json:"-"`
-	RefCount          int             `json:"-"`
 	Restart           bool            `json:"-"`
 	ExitChan          chan bool       `json:"-"`
 	LibRoot           string          `json:"-"`

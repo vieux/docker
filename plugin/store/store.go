@@ -146,7 +146,7 @@ func (ps *Store) updatePluginDB() error {
 }
 
 // Get returns an enabled plugin matching the given name and capability.
-func (ps *Store) Get(name, capability string, mode int) (plugingetter.CompatPlugin, error) {
+func (ps *Store) Get(name, capability string, mode int64) (plugingetter.CompatPlugin, error) {
 	var (
 		p   *v2.Plugin
 		err error
@@ -168,7 +168,7 @@ func (ps *Store) Get(name, capability string, mode int) (plugingetter.CompatPlug
 		p, err = ps.GetByName(fullName)
 		if err == nil {
 			p.Lock()
-			p.RefCount += mode
+			p.PluginObj.RefCount += mode
 			p.Unlock()
 			if p.IsEnabled() {
 				return p.FilterByCap(capability)

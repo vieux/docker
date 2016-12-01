@@ -1349,6 +1349,9 @@ definitions:
         description: "True when the plugin is running. False when the plugin is not running, only installed."
         type: "boolean"
         x-nullable: false
+      RefCount:
+        type: "integer"
+        x-nullable: false
       Settings:
         description: "Settings that can be modified by users."
         type: "object"

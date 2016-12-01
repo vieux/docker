@@ -20,7 +20,7 @@ type CompatPlugin interface {
 
 // PluginGetter is the interface implemented by Store
 type PluginGetter interface {
-	Get(name, capability string, mode int) (CompatPlugin, error)
+	Get(name, capability string, mode int64) (CompatPlugin, error)
 	GetAllByCap(capability string) ([]CompatPlugin, error)
 	Handle(capability string, callback func(string, *plugins.Client))
 }

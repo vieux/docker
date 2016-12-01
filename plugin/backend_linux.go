@@ -29,6 +29,14 @@ func (pm *Manager) Disable(name string) error {
 	if err != nil {
 		return err
 	}
+
+	p.RLock()
+	if p.PluginObj.RefCount > 0 {
+		p.RUnlock()
+		return fmt.Errorf("plugin %s is in use", p.Name())
+	}
+	p.RUnlock()
+
 	if err := pm.disable(p); err != nil {
 		return err
 	}
@@ -165,7 +173,7 @@ func (pm *Manager) Remove(name string, config *types.PluginRmConfig) error {
 
 	if !config.ForceRemove {
 		p.RLock()
-		if p.RefCount > 0 {
+		if p.PluginObj.RefCount > 0 {
 			p.RUnlock()
 			return fmt.Errorf("plugin %s is in use", p.Name())
 		}

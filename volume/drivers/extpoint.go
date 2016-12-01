@@ -101,7 +101,7 @@ func Unregister(name string) bool {
 // lookup returns the driver associated with the given name. If a
 // driver with the given name has not been registered it checks if
 // there is a VolumeDriver plugin available with the given name.
-func lookup(name string, mode int) (volume.Driver, error) {
+func lookup(name string, mode int64) (volume.Driver, error) {
 	drivers.driverLock.Lock(name)
 	defer drivers.driverLock.Unlock(name)
 

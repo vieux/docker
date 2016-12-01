@@ -22,6 +22,9 @@ type Plugin struct {
 	// Required: true
 	Name string `json:"Name"`
 
+	// ref count
+	RefCount int64 `json:"RefCount,omitempty"`
+
 	// settings
 	// Required: true
 	Settings PluginSettings `json:"Settings"`
