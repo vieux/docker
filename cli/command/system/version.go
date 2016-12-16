@@ -15,22 +15,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var versionTemplate = `Client:
- Version:      {{.Client.Version}}
- API version:  {{.Client.APIVersion}}
- Go version:   {{.Client.GoVersion}}
- Git commit:   {{.Client.GitCommit}}
- Built:        {{.Client.BuildTime}}
- OS/Arch:      {{.Client.Os}}/{{.Client.Arch}}{{if .ServerOK}}
+var versionTemplate = `Client:{{if .ClientDockerVersionOK}}
+ Docker Version:  {{.ClientDockerVersion}}{{end}}
+ Engine Version:  {{.Client.Version}}
+ API version:     {{.Client.APIVersion}}
+ Go version:      {{.Client.GoVersion}}
+ Git commit:      {{.Client.GitCommit}}
+ Built:           {{.Client.BuildTime}}
+ OS/Arch:         {{.Client.Os}}/{{.Client.Arch}}{{if .ServerOK}}
 
-Server:
- Version:      {{.Server.Version}}
- API version:  {{.Server.APIVersion}} (minimum version {{.Server.MinAPIVersion}})
- Go version:   {{.Server.GoVersion}}
- Git commit:   {{.Server.GitCommit}}
- Built:        {{.Server.BuildTime}}
- OS/Arch:      {{.Server.Os}}/{{.Server.Arch}}
- Experimental: {{.Server.Experimental}}{{end}}`
+Server:{{if .ServerDockerVersionOK}}
+ Docker Version:  {{.ServerDockerVersion}}{{end}}
+ Engine Version:  {{.Server.Version}}
+ API version:     {{.Server.APIVersion}} (minimum version {{.Server.MinAPIVersion}})
+ Go version:      {{.Server.GoVersion}}
+ Git commit:      {{.Server.GitCommit}}
+ Built:           {{.Server.BuildTime}}
+ OS/Arch:         {{.Server.Os}}/{{.Server.Arch}}
+ Experimental:    {{.Server.Experimental}}{{end}}`
 
 type versionOptions struct {
 	format string
@@ -85,6 +87,11 @@ func runVersion(dockerCli *command.DockerCli, opts *versionOptions) error {
 			Os:         runtime.GOOS,
 			Arch:       runtime.GOARCH,
 		},
+	}
+
+	dockerRelease := dockerversion.DockerRelease()
+	if dockerRelease != nil {
+		vd.Client.DockerVersion = &dockerRelease.DockerVersion
 	}
 
 	serverVersion, err := dockerCli.Client().ServerVersion(ctx)

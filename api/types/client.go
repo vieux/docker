@@ -268,6 +268,26 @@ func (v VersionResponse) ServerOK() bool {
 	return v.Server != nil
 }
 
+// ClientDockerVersionOK returns true if client returned docker version informations
+func (v VersionResponse) ClientDockerVersionOK() bool {
+	return v.Client != nil && v.Client.DockerVersion != nil
+}
+
+// ClientDockerVersion returns docker version informations
+func (v VersionResponse) ClientDockerVersion() string {
+	return v.Client.DockerVersion.String()
+}
+
+// ServerDockerVersionOK returns true if server returned docker version informations
+func (v VersionResponse) ServerDockerVersionOK() bool {
+	return v.Server != nil && v.Server.DockerVersion != nil
+}
+
+// ServerDockerVersion returns docker version informations
+func (v VersionResponse) ServerDockerVersion() string {
+	return v.Server.DockerVersion.String()
+}
+
 // NodeListOptions holds parameters to list nodes with.
 type NodeListOptions struct {
 	Filters filters.Args
